@@ -9,6 +9,8 @@ from logging.handlers import RotatingFileHandler
 import sqlite3
 import re
 import os
+import threading
+import time
 
 def setup_logger():
     logger = logging.getLogger('BrunchLogger')
@@ -64,6 +66,13 @@ class DatabaseManager:
         c.execute('SELECT name, item, for_coffee_only FROM brunch_participants')
         return c.fetchall()
 
+    def reset_db(self):
+        logger.info("Resetting the database")
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute('DELETE FROM brunch_participants')
+        conn.commit()
+
 db_manager = DatabaseManager()
 
 def next_brunch_date():
@@ -90,6 +99,7 @@ brunch = Flask(__name__)
 
 @brunch.route('/', methods=['GET', 'POST'])
 def index():
+    current_year = datetime.now().year
     error_message = ""
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -114,24 +124,26 @@ def index():
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Frühstücks-Brunch Anmeldung</title>
-            <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
         </head>
-        <body>
-            <div class="container">
-                <h1 class="my-4">Frühstücks-Brunch Anmeldung</h1>
-                <p>Nächster Termin: {{ next_brunch }}</p>
-                <p>Anzahl der angemeldeten Teilnehmer: {{ participant_count }}</p>
-                <p style="color: red;">{{ error_message }}</p>
-                <form method="post">
-                    Name: <input type="text" name="name"><br>
-                    Mitbringsel: <input type="text" name="item"><br>
-                    Nur zum Kaffee: <input type="checkbox" name="for_coffee_only"><br>
-                    <input type="submit" value="Anmelden">
+        <body class="bg-gray-100">
+            <div class="container mx-auto px-4">
+                <h1 class="text-3xl font-bold text-center my-6">Frühstücks-Brunch Anmeldung</h1>
+                <p class="text-red-500">{{ error_message }}</p>
+                <form method="post" class="mb-4">
+                    <label class="block mb-2">Name: <input type="text" name="name" class="border p-2"></label>
+                    <label class="block mb-2">Mitbringsel: <input type="text" name="item" class="border p-2"></label>
+                    <label class="block mb-4">Nur zum Kaffee: <input type="checkbox" name="for_coffee_only"></label>
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden</button>
                 </form>
+                <p>Anzahl der Teilnehmer: {{ participant_count }}</p>
             </div>
+            <footer class="bg-white text-center text-gray-700 p-4">
+                © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
+            </footer>
         </body>
         </html>
-    """, next_brunch=next_brunch_date(), participant_count=participant_count, error_message=error_message)
+    """, participant_count=participant_count, error_message=error_message, current_year=current_year)
 
 def check_auth(username, password):
     return username in credentials and credentials[username] == password
@@ -158,21 +170,38 @@ def admin_page():
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Admin - Frühstücks-Brunch</title>
-            <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
         </head>
-        <body>
-            <div class="container">
-                <h1 class="my-4">Admin-Seite: Frühstücks-Brunch</h1>
-                <h2>Teilnehmerliste</h2>
+        <body class="bg-gray-100">
+            <div class="container mx-auto px-4">
+                <h1 class="text-3xl font-bold text-center my-6">Admin-Seite: Frühstücks-Brunch</h1>
                 <ul>
-                {% for name, item, for_coffee_only in brunch_info %}
-                    <li>{{ name }} - {{ 'Nur Kaffee' if for_coffee_only else item }}</li>
-                {% endfor %}
+                    {% for name, item, for_coffee_only in brunch_info %}
+                        <li>{{ name }} - {{ 'Nur Kaffee' if for_coffee_only else item }}</li>
+                    {% endfor %}
                 </ul>
             </div>
+            <footer class="bg-white text-center text-gray-700 p-4">
+                © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
+            </footer>
         </body>
         </html>
-    """, brunch_info=brunch_info)
+    """, brunch_info=brunch_info, current_year=datetime.now().year)
+
+def reset_database_at_event_time():
+    while True:
+        now = datetime.now()
+        next_brunch = datetime.strptime(next_brunch_date(), '%d.%m.%Y')
+        next_reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
+
+        if now >= next_reset_time:
+            db_manager.reset_db()
+            time.sleep(24 * 60 * 60)  # Warte einen Tag bis zur nächsten Überprüfung
+        else:
+            time.sleep((next_reset_time - now).total_seconds())
+
+reset_thread = threading.Thread(target=reset_database_at_event_time)
+reset_thread.start()
 
 if __name__ == '__main__':
     brunch.run(host='0.0.0.0', port=8082, use_reloader=False)
