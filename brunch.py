@@ -2,13 +2,12 @@
 # Autor: Erik Schauer, DO1FFE, do1ffe@darc.de
 # Erstelldatum: 2023-12-16
 
-from flask import Flask, request, render_template_string, Response, redirect, url_for
+from flask import Flask, request, render_template_string, Response
 from datetime import datetime, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
 import sqlite3
 import re
-import os
 import threading
 import time
 
@@ -51,13 +50,15 @@ class DatabaseManager:
     def init_db(self):
         conn = self.get_connection()
         c = conn.cursor()
-        c.execute('CREATE TABLE IF NOT EXISTS brunch_participants (name TEXT, item TEXT, for_coffee_only INTEGER)')
+        c.execute('''CREATE TABLE IF NOT EXISTS brunch_participants 
+                     (name TEXT, item TEXT, for_coffee_only INTEGER)''')
         conn.commit()
 
     def add_brunch_entry(self, name, item, for_coffee_only):
         conn = self.get_connection()
         c = conn.cursor()
-        c.execute('INSERT INTO brunch_participants (name, item, for_coffee_only) VALUES (?, ?, ?)', (name, item, for_coffee_only))
+        c.execute('INSERT INTO brunch_participants (name, item, for_coffee_only) VALUES (?, ?, ?)', 
+                  (name, item, for_coffee_only))
         conn.commit()
 
     def get_brunch_info(self):
@@ -95,25 +96,38 @@ def validate_input(text):
         return False
     return re.match(r'^[A-Za-z0-9äöüÄÖÜß\s\-]+$', text) is not None
 
+def read_items_from_file():
+    try:
+        with open('mitbringsel.txt', 'r') as file:
+            return [line.strip() for line in file if line.strip()]
+    except FileNotFoundError:
+        return []
+
+def add_item_to_file(item):
+    with open('mitbringsel.txt', 'a') as file:
+        file.write(f"{item}\n")
+
 brunch = Flask(__name__)
 
 @brunch.route('/', methods=['GET', 'POST'])
 def index():
     current_year = datetime.now().year
+    available_items = read_items_from_file()
     error_message = ""
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
-        item = request.form.get('item', '').strip()
+        selected_item = request.form.get('selected_item', '').strip()
+        custom_item = request.form.get('custom_item', '').strip()
+        item = custom_item if custom_item else selected_item
         for_coffee_only = 'for_coffee_only' in request.form
 
         if not validate_input(name):
             error_message = "Bitte einen gültigen Namen eingeben."
-        elif for_coffee_only:
-            db_manager.add_brunch_entry(name, None, 1)
-        elif item:
-            db_manager.add_brunch_entry(name, item, 0)
         else:
-            error_message = "Bitte ein Mitbringsel auswählen oder nur zum Kaffee anmelden."
+            if custom_item and custom_item not in available_items:
+                add_item_to_file(custom_item)
+                available_items.append(custom_item)
+            db_manager.add_brunch_entry(name, item, for_coffee_only)
 
     participant_count = len(db_manager.get_brunch_info())
 
@@ -132,7 +146,17 @@ def index():
                 <p class="text-red-500">{{ error_message }}</p>
                 <form method="post" class="mb-4">
                     <label class="block mb-2">Name: <input type="text" name="name" class="border p-2"></label>
-                    <label class="block mb-2">Mitbringsel: <input type="text" name="item" class="border p-2"></label>
+                    <label class="block mb-2">
+                        Mitbringsel: 
+                        <select name="selected_item" class="border p-2">
+                            {% for item in available_items %}
+                            <option value="{{ item }}">{{ item }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="block mb-2">
+                        Oder neues Mitbringsel hinzufügen: <input type="text" name="custom_item" class="border p-2">
+                    </label>
                     <label class="block mb-4">Nur zum Kaffee: <input type="checkbox" name="for_coffee_only"></label>
                     <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden</button>
                 </form>
@@ -143,24 +167,11 @@ def index():
             </footer>
         </body>
         </html>
-    """, participant_count=participant_count, error_message=error_message, current_year=current_year)
+    """, available_items=available_items, participant_count=participant_count, error_message=error_message, current_year=current_year)
 
-def check_auth(username, password):
-    return username in credentials and credentials[username] == password
-
-def authenticate():
-    return Response('Zugriff verweigert', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
-
-def requires_auth(f):
-    def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
-            return authenticate()
-        return f(*args, **kwargs)
-    return decorated
+# ... [Fortsetzung des vorherigen Codes]
 
 @brunch.route('/admin')
-@requires_auth
 def admin_page():
     brunch_info = db_manager.get_brunch_info()
     return render_template_string("""
@@ -175,11 +186,24 @@ def admin_page():
         <body class="bg-gray-100">
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">Admin-Seite: Frühstücks-Brunch</h1>
-                <ul>
-                    {% for name, item, for_coffee_only in brunch_info %}
-                        <li>{{ name }} - {{ 'Nur Kaffee' if for_coffee_only else item }}</li>
-                    {% endfor %}
-                </ul>
+                <table class="table-auto w-full mb-6">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="px-4 py-2">Name</th>
+                            <th class="px-4 py-2">Mitbringsel</th>
+                            <th class="px-4 py-2">Nur zum Kaffee</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, item, for_coffee_only in brunch_info %}
+                        <tr>
+                            <td class="border px-4 py-2">{{ name }}</td>
+                            <td class="border px-4 py-2">{{ item }}</td>
+                            <td class="border px-4 py-2">{{ 'Ja' if for_coffee_only else 'Nein' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
             <footer class="bg-white text-center text-gray-700 p-4">
                 © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
@@ -196,8 +220,10 @@ def reset_database_at_event_time():
 
         if now >= next_reset_time:
             db_manager.reset_db()
-            time.sleep(24 * 60 * 60)  # Warte einen Tag bis zur nächsten Überprüfung
+            # Warte bis zum nächsten Tag, um erneut zu prüfen
+            time.sleep(24 * 60 * 60)
         else:
+            # Warte bis zum Reset-Zeitpunkt
             time.sleep((next_reset_time - now).total_seconds())
 
 reset_thread = threading.Thread(target=reset_database_at_event_time)
