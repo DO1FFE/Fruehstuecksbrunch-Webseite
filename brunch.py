@@ -169,8 +169,6 @@ def index():
         </html>
     """, available_items=available_items, participant_count=participant_count, error_message=error_message, current_year=current_year)
 
-# ... [Fortsetzung des vorherigen Codes]
-
 @brunch.route('/admin')
 def admin_page():
     brunch_info = db_manager.get_brunch_info()
