@@ -162,4 +162,4 @@ def index():
 
 if __name__ == '__main__':
     db_manager = DatabaseManager()
-    brunch.run(host='0.0.0.0', port=8083, use_reloader=False)
+    brunch.run(host='0.0.0.0', port=8082, use_reloader=False)
