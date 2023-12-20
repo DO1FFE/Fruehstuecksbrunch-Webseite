@@ -129,9 +129,10 @@ brunch = Flask(__name__)
 @brunch.route('/', methods=['GET', 'POST'])
 def index():
     current_year = datetime.now().year
+    next_brunch_date_str = next_brunch_date()  # Datum des nächsten Brunchs berechnen
     error_message = ""
     available_items = get_available_items()
-    taken_items_info = db_manager.get_brunch_info()  # Liste der bereits gewählten Mitbringsel und Teilnehmer
+    taken_items_info = db_manager.get_brunch_info()
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -157,15 +158,15 @@ def index():
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Frühstücks-Brunch Anmeldung</title>
+            <title>Frühstücks-Brunch Anmeldung - {{ next_brunch_date_str }}</title>
             <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
         </head>
         <body class="bg-gray-100">
             <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">Frühstücks-Brunch Anmeldung</h1>
+                <h1 class="text-3xl font-bold text-center my-6">Frühstücks-Brunch Anmeldung - {{ next_brunch_date_str }}</h1>
                 <p class="text-red-500">{{ error_message }}</p>
                 <form method="post" class="mb-4">
-                    <label class="block mb-2">Name: <input type="text" name="name" class="border p-2"></label>
+                    <label class="block mb-2">Rufzeichen oder vollständiger Name: <input type="text" name="name" class="border p-2"></label>
                     <label class="block mb-2">
                         Mitbringsel: 
                         <select name="selected_item" class="border p-2">
@@ -182,8 +183,8 @@ def index():
                 </form>
                 <h2>Bereits gewählte Mitbringsel:</h2>
                 <ul>
-                    {% for name, item, for_coffee_only in taken_items_info %}
-                        <li>{{ name }}: {{ item if item else 'Nur Kaffee' }}</li>
+                    {% for item in taken_items_info %}
+                        <li>{{ item }}</li>
                     {% endfor %}
                 </ul>
             </div>
@@ -192,7 +193,7 @@ def index():
             </footer>
         </body>
         </html>
-    """, available_items=available_items, taken_items_info=taken_items_info, error_message=error_message, current_year=current_year)
+    """, available_items=available_items, taken_items_info=taken_items_info, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year)
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
