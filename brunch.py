@@ -162,12 +162,13 @@ brunch = Flask(__name__)
 @brunch.route('/', methods=['GET', 'POST'])
 def index():
     current_year = datetime.now().year
-    next_brunch_date_str = next_brunch_date()  # Datum des nächsten Brunchs berechnen
+    next_brunch_date_str = next_brunch_date()
     error_message = ""
     available_items = get_available_items()
     taken_items_info = db_manager.get_brunch_info()
-    taken_items = [item for _, item, _ in db_manager.get_brunch_info() if item]
+    taken_items = [item for _, item, _ in taken_items_info if item]
     taken_items_str = ', '.join(taken_items)
+
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
     coffee_only_participants = db_manager.count_coffee_only_participants()
 
@@ -184,13 +185,19 @@ def index():
         else:
             if for_coffee_only:
                 item = ''  # Setzt item auf leer, wenn nur zum Kaffee
+                db_manager.add_brunch_entry(name, item, for_coffee_only)
+                error_message = f"Teilnehmer '{name}' nur zum Kaffee hinzugefügt."
             else:
                 item = custom_item if custom_item else selected_item
                 if custom_item and custom_item not in available_items:
                     add_item_to_file(custom_item)
                     available_items = get_available_items()
-            db_manager.add_brunch_entry(name, item, for_coffee_only)
-            taken_items_info = db_manager.get_brunch_info()  # Aktualisiere die Liste nach dem Hinzufügen
+                db_manager.add_brunch_entry(name, item, for_coffee_only)
+                error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item}' hinzugefügt."
+
+            total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
+            coffee_only_participants = db_manager.count_coffee_only_participants()
+            taken_items_info = db_manager.get_brunch_info()
 
     return render_template_string("""
         <!DOCTYPE html>
@@ -204,7 +211,7 @@ def index():
         <body class="bg-gray-100">
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">Frühstücks-Brunch Anmeldung - {{ next_brunch_date_str }}</h1>
-                <h2 class="text-3x1 font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
+                <p>Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</p>
                 <p class="text-red-500">{{ error_message }}</p>
                 <form method="post" class="mb-4">
                     <label class="block mb-2">Rufzeichen oder vollständiger Name: <input type="text" name="name" class="border p-2"></label>
