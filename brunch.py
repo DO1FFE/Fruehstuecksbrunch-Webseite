@@ -185,14 +185,17 @@ def index():
                 error_message = f"Teilnehmer '{name}' als Kaffeetrinker hinzugefügt."
             else:
                 item = custom_item if custom_item else selected_item
-                if custom_item and custom_item not in available_items:
-                    add_item_to_file(custom_item)
-                db_manager.add_brunch_entry(name, item, for_coffee_only)
-                error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item}' hinzugefügt."
+                if item in [entry[1] for entry in db_manager.get_brunch_info()]:
+                    error_message = f"Mitbringsel '{item}' ist bereits vergeben."
+                else:
+                    if custom_item and custom_item not in available_items:
+                        add_item_to_file(custom_item)
+                    db_manager.add_brunch_entry(name, item, for_coffee_only)
+                    error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item}' hinzugefügt."
 
             total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
             coffee_only_participants = db_manager.count_coffee_only_participants()
-            available_items = get_available_items()  # Update available items list
+            available_items = get_available_items()
 
     taken_items_info = db_manager.get_brunch_info()
     taken_items = [item for _, item, _ in taken_items_info if item]
@@ -237,6 +240,8 @@ def index():
                             <td><input type="checkbox" name="for_coffee_only" id="for_coffee_only"></td>
                         </tr>
                         <tr>
+                            <td>&nbsp;</td>
+                            <td></td>
                         </tr>
                         <tr>
                             <td></td>
