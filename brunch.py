@@ -171,12 +171,10 @@ def index():
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
     coffee_only_participants = db_manager.count_coffee_only_participants()
 
-
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         selected_item = request.form.get('selected_item', '').strip()
         custom_item = request.form.get('custom_item', '').strip()
-        item = custom_item if custom_item else selected_item
         for_coffee_only = 'for_coffee_only' in request.form
 
         if not validate_input(name):
@@ -184,9 +182,13 @@ def index():
         elif db_manager.participant_exists(name):
             return redirect(url_for('confirm_delete', name=name))
         else:
-            if custom_item and custom_item not in available_items:
-                add_item_to_file(custom_item)
-                available_items = get_available_items()
+            if for_coffee_only:
+                item = ''  # Setzt item auf leer, wenn nur zum Kaffee
+            else:
+                item = custom_item if custom_item else selected_item
+                if custom_item and custom_item not in available_items:
+                    add_item_to_file(custom_item)
+                    available_items = get_available_items()
             db_manager.add_brunch_entry(name, item, for_coffee_only)
             taken_items_info = db_manager.get_brunch_info()  # Aktualisiere die Liste nach dem Hinzufügen
 
