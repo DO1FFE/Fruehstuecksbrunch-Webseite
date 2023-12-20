@@ -184,7 +184,7 @@ def index():
                 <h2>Bereits gewählte Mitbringsel:</h2>
                 <ul>
                     {% for item in taken_items_info %}
-                        <li>{{ item }}</li>
+                        <li>{{ item if item else ''}}</li>
                     {% endfor %}
                 </ul>
             </div>
