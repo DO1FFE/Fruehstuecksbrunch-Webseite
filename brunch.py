@@ -3,6 +3,7 @@
 # Erstelldatum: 2023-12-16
 
 from flask import Flask, request, render_template_string, Response, redirect, url_for
+from functools import wraps
 from datetime import datetime, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
@@ -30,6 +31,26 @@ def load_credentials():
         return credentials
 
 credentials = load_credentials()
+
+# Überprüfen der Anmeldedaten
+def check_auth(username, password):
+    return username in credentials and credentials[username] == password
+
+# Aufforderung zur Authentifizierung
+def authenticate():
+    return Response(
+    'Zugriff verweigert. Bitte Authentifizieren.', 401,
+    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+# Dekorator für Authentifizierung
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
 
 class DatabaseManager:
     def __init__(self, db_name='brunch.db'):
@@ -222,6 +243,7 @@ def confirm_delete(name):
     """, name=name)
 
 @brunch.route('/admin')
+@requires_auth
 def admin_page():
     brunch_info = db_manager.get_brunch_info()
     return render_template_string("""
