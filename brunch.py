@@ -117,8 +117,10 @@ brunch = Flask(__name__)
 @brunch.route('/', methods=['GET', 'POST'])
 def index():
     current_year = datetime.now().year
-    available_items = read_items_from_file()
     error_message = ""
+    available_items = get_available_items()
+    participant_count = len(db_manager.get_brunch_info())
+
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         selected_item = request.form.get('selected_item', '').strip()
@@ -128,13 +130,13 @@ def index():
 
         if not validate_input(name):
             error_message = "Bitte einen gültigen Namen eingeben."
+        elif db_manager.participant_exists(name):
+            return redirect(url_for('confirm_delete', name=name))
+        elif custom_item and custom_item not in available_items:
+            add_item_to_file(custom_item)
+            db_manager.add_brunch_entry(name, custom_item, for_coffee_only)
         else:
-            if custom_item and custom_item not in available_items:
-                add_item_to_file(custom_item)
-                available_items.append(custom_item)
-            db_manager.add_brunch_entry(name, item, for_coffee_only)
-
-    participant_count = len(db_manager.get_brunch_info())
+            db_manager.add_brunch_entry(name, selected_item, for_coffee_only)
 
     return render_template_string("""
         <!DOCTYPE html>
@@ -174,6 +176,34 @@ def index():
         </html>
     """, available_items=available_items, participant_count=participant_count, error_message=error_message, current_year=current_year)
 
+@brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
+def confirm_delete(name):
+    if request.method == 'POST':
+        db_manager.delete_entry(name)
+        return redirect(url_for('index'))
+
+    return render_template_string("""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Teilnehmer löschen</title>
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        </head>
+        <body class="bg-gray-100">
+            <div class="container mx-auto px-4">
+                <h1 class="text-3xl font-bold text-center my-6">Teilnehmer löschen</h1>
+                <p>Möchtest du <b> {{ name }} </b> wirklich löschen?</p>
+                <form method="POST">
+                    <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Löschen</button>
+                    <a href="{{ url_for('index') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Abbrechen</a>
+                </form>
+            </div>
+        </body>
+        </html>
+    """, name=name)
+
 @brunch.route('/admin')
 def admin_page():
     brunch_info = db_manager.get_brunch_info()
@@ -208,9 +238,6 @@ def admin_page():
                     </tbody>
                 </table>
             </div>
-            <footer class="bg-white text-center text-gray-700 p-4">
-                © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
-            </footer>
         </body>
         </html>
     """, brunch_info=brunch_info, current_year=datetime.now().year)
