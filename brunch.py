@@ -213,20 +213,34 @@ def index():
                 <h2 class="text-xl font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
                 <p class="text-red-500">{{ error_message }}</p>
                 <form method="post" class="mb-4">
-                    <label class="block mb-2">Rufzeichen oder vollständiger Name: <input type="text" name="name" class="border p-2"></label>
-                    <label class="block mb-2">
-                        Mitbringsel: 
-                        <select name="selected_item" class="border p-2">
-                            {% for item in available_items %}
-                            <option value="{{ item }}">{{ item }}</option>
-                            {% endfor %}
-                        </select>
-                    </label>
-                    <label class="block mb-2">
-                        Oder neues Mitbringsel hinzufügen: <input type="text" name="custom_item" class="border p-2">
-                    </label>
-                    <label class="block mb-4">Nur zum Kaffee: <input type="checkbox" name="for_coffee_only"></label>
-                    <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden</button>
+                    <table>
+                        <tr>
+                            <td><label for="name">Rufzeichen oder vollständiger Name:</label></td>
+                            <td><input type="text" name="name" class="border p-2" id="name"></td>
+                        </tr>
+                        <tr>
+                            <td><label for="selected_item">Mitbringsel:</label></td>
+                            <td>
+                                <select name="selected_item" class="border p-2" id="selected_item">
+                                    {% for item in available_items %}
+                                        <option value="{{ item }}">{{ item }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><label for="custom_item">Oder neues Mitbringsel hinzufügen:</label></td>
+                            <td><input type="text" name="custom_item" class="border p-2" id="custom_item"></td>
+                        </tr>
+                        <tr>
+                            <td><label for="for_coffee_only">Nur zum Kaffee:</label></td>
+                            <td><input type="checkbox" name="for_coffee_only" id="for_coffee_only"></td>
+                        </tr>
+                        <tr>
+                            <td></td>
+                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden</button></td>
+                        </tr>
+                    </table>
                 </form>
                 <h2>Bereits gewählte Mitbringsel:</h2>
                 <p>{{ taken_items_str }}</p>
