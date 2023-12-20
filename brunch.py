@@ -233,12 +233,14 @@ def index():
                             <td><input type="text" name="custom_item" class="border p-2" id="custom_item"></td>
                         </tr>
                         <tr>
-                            <td><label for="for_coffee_only">Nur zum Kaffee:</label></td>
+                            <td><label for="for_coffee_only">Nur zum Kaffee:<br>(Mitbringsel wird ignoriert)</label></td>
                             <td><input type="checkbox" name="for_coffee_only" id="for_coffee_only"></td>
                         </tr>
                         <tr>
+                        </tr>
+                        <tr>
                             <td></td>
-                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden</button></td>
+                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden / Abmelden</button></td>
                         </tr>
                     </table>
                 </form>
