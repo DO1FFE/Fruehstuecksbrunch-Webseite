@@ -125,7 +125,6 @@ def index():
     current_year = datetime.now().year
     error_message = ""
     available_items = get_available_items()
-    participant_count = len(db_manager.get_brunch_info())
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -138,11 +137,13 @@ def index():
             error_message = "Bitte einen gültigen Namen eingeben."
         elif db_manager.participant_exists(name):
             return redirect(url_for('confirm_delete', name=name))
-        elif custom_item and custom_item not in available_items:
-            add_item_to_file(custom_item)
-            db_manager.add_brunch_entry(name, custom_item, for_coffee_only)
         else:
-            db_manager.add_brunch_entry(name, selected_item, for_coffee_only)
+            if custom_item and custom_item not in available_items:
+                add_item_to_file(custom_item)
+                available_items = get_available_items()
+            db_manager.add_brunch_entry(name, item, for_coffee_only)
+
+    participant_count = len(db_manager.get_brunch_info())  # Aktualisiere die Teilnehmeranzahl
 
     return render_template_string("""
         <!DOCTYPE html>
