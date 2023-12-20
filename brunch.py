@@ -74,6 +74,12 @@ class DatabaseManager:
         c.execute('DELETE FROM brunch_participants')
         conn.commit()
 
+    def delete_entry(self, name):
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute('DELETE FROM brunch_participants WHERE name = ?', (name,))
+        conn.commit()
+
     def participant_exists(self, name):
         conn = self.get_connection()
         c = conn.cursor()
