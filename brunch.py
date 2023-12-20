@@ -107,6 +107,18 @@ class DatabaseManager:
         c.execute('SELECT * FROM brunch_participants WHERE name = ?', (name,))
         return c.fetchone() is not None
 
+    def count_participants_excluding_coffee_only(self):
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute('SELECT COUNT(*) FROM brunch_participants WHERE for_coffee_only = 0')
+        return c.fetchone()[0]
+
+    def count_coffee_only_participants(self):
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute('SELECT COUNT(*) FROM brunch_participants WHERE for_coffee_only = 1')
+        return c.fetchone()[0]
+
 db_manager = DatabaseManager()
 
 def next_brunch_date():
@@ -156,6 +168,9 @@ def index():
     taken_items_info = db_manager.get_brunch_info()
     taken_items = [item for _, item, _ in db_manager.get_brunch_info() if item]
     taken_items_str = ', '.join(taken_items)
+    total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
+    coffee_only_participants = db_manager.count_coffee_only_participants()
+
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -187,6 +202,7 @@ def index():
         <body class="bg-gray-100">
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">Frühstücks-Brunch Anmeldung - {{ next_brunch_date_str }}</h1>
+                <p>Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</p>
                 <p class="text-red-500">{{ error_message }}</p>
                 <form method="post" class="mb-4">
                     <label class="block mb-2">Rufzeichen oder vollständiger Name: <input type="text" name="name" class="border p-2"></label>
@@ -212,7 +228,7 @@ def index():
             </footer>
         </body>
         </html>
-    """, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year)
+    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year)
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
