@@ -165,10 +165,6 @@ def index():
     next_brunch_date_str = next_brunch_date()
     error_message = ""
     available_items = get_available_items()
-    taken_items_info = db_manager.get_brunch_info()
-    taken_items = [item for _, item, _ in taken_items_info if item]
-    taken_items_str = ', '.join(taken_items)
-
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
     coffee_only_participants = db_manager.count_coffee_only_participants()
 
@@ -184,20 +180,23 @@ def index():
             return redirect(url_for('confirm_delete', name=name))
         else:
             if for_coffee_only:
-                item = ''  # Setzt item auf leer, wenn nur zum Kaffee
+                item = ''
                 db_manager.add_brunch_entry(name, item, for_coffee_only)
                 error_message = f"Teilnehmer '{name}' als Kaffeetrinker hinzugefügt."
             else:
                 item = custom_item if custom_item else selected_item
                 if custom_item and custom_item not in available_items:
                     add_item_to_file(custom_item)
-                    available_items = get_available_items()
                 db_manager.add_brunch_entry(name, item, for_coffee_only)
                 error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item}' hinzugefügt."
 
             total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
             coffee_only_participants = db_manager.count_coffee_only_participants()
-            taken_items_info = db_manager.get_brunch_info()
+            available_items = get_available_items()  # Update available items list
+
+    taken_items_info = db_manager.get_brunch_info()
+    taken_items = [item for _, item, _ in taken_items_info if item]
+    taken_items_str = ', '.join(taken_items)
 
     return render_template_string("""
         <!DOCTYPE html>
