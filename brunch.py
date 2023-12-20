@@ -186,7 +186,7 @@ def index():
             if for_coffee_only:
                 item = ''  # Setzt item auf leer, wenn nur zum Kaffee
                 db_manager.add_brunch_entry(name, item, for_coffee_only)
-                error_message = f"Teilnehmer '{name}' nur zum Kaffee hinzugefügt."
+                error_message = f"Teilnehmer '{name}' als Kaffeetrinker hinzugefügt."
             else:
                 item = custom_item if custom_item else selected_item
                 if custom_item and custom_item not in available_items:
