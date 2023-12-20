@@ -125,6 +125,7 @@ def index():
     current_year = datetime.now().year
     error_message = ""
     available_items = get_available_items()
+    taken_items_info = db_manager.get_brunch_info()  # Liste der bereits gewählten Mitbringsel und Teilnehmer
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -142,8 +143,7 @@ def index():
                 add_item_to_file(custom_item)
                 available_items = get_available_items()
             db_manager.add_brunch_entry(name, item, for_coffee_only)
-
-    participant_count = len(db_manager.get_brunch_info())  # Aktualisiere die Teilnehmeranzahl
+            taken_items_info = db_manager.get_brunch_info()  # Aktualisiere die Liste nach dem Hinzufügen
 
     return render_template_string("""
         <!DOCTYPE html>
@@ -174,14 +174,19 @@ def index():
                     <label class="block mb-4">Nur zum Kaffee: <input type="checkbox" name="for_coffee_only"></label>
                     <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden</button>
                 </form>
-                <p>Anzahl der Teilnehmer: {{ participant_count }}</p>
+                <h2>Bereits gewählte Mitbringsel:</h2>
+                <ul>
+                    {% for name, item, for_coffee_only in taken_items_info %}
+                        <li>{{ name }}: {{ item if item else 'Nur Kaffee' }}</li>
+                    {% endfor %}
+                </ul>
             </div>
             <footer class="bg-white text-center text-gray-700 p-4">
                 © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
             </footer>
         </body>
         </html>
-    """, available_items=available_items, participant_count=participant_count, error_message=error_message, current_year=current_year)
+    """, available_items=available_items, taken_items_info=taken_items_info, error_message=error_message, current_year=current_year)
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
