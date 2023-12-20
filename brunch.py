@@ -182,11 +182,9 @@ def index():
                     <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden</button>
                 </form>
                 <h2>Bereits gewählte Mitbringsel:</h2>
-                <ul>
-                    {% for item in taken_items_info %}
-                        <li>{{ item if item else ''}}</li>
-                    {% endfor %}
-                </ul>
+                <p>
+                    {{ ', '.join([item for _, item, _ in taken_items_info if item]) }}
+                </p>
             </div>
             <footer class="bg-white text-center text-gray-700 p-4">
                 © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
