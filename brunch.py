@@ -107,6 +107,11 @@ def add_item_to_file(item):
     with open('mitbringsel.txt', 'a') as file:
         file.write(f"{item}\n")
 
+def get_available_items():
+    all_items = read_items_from_file()
+    taken_items = [entry[1] for entry in db_manager.get_brunch_info() if entry[1]]
+    return [item for item in all_items if item not in taken_items]
+
 brunch = Flask(__name__)
 
 @brunch.route('/', methods=['GET', 'POST'])
