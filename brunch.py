@@ -133,6 +133,8 @@ def index():
     error_message = ""
     available_items = get_available_items()
     taken_items_info = db_manager.get_brunch_info()
+    taken_items = [item for _, item, _ in db_manager.get_brunch_info() if item]
+    taken_items_str = ', '.join(taken_items)
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -182,16 +184,14 @@ def index():
                     <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden</button>
                 </form>
                 <h2>Bereits gewählte Mitbringsel:</h2>
-                <p>
-                    {{ ', '.join([item for _, item, _ in taken_items_info if item]) }}
-                </p>
+                <p>{{ taken_items_str }}</p>
             </div>
             <footer class="bg-white text-center text-gray-700 p-4">
                 © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
             </footer>
         </body>
         </html>
-    """, available_items=available_items, taken_items_info=taken_items_info, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year)
+    """, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year)
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
