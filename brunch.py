@@ -149,8 +149,9 @@ def read_items_from_file():
         return []
 
 def add_item_to_file(item):
+    formatted_item = item.lower().capitalize()
     with open('mitbringsel.txt', 'a') as file:
-        file.write(f"{item}\n")
+        file.write(f"{formatted_item}\n")
 
 def get_available_items():
     all_items = read_items_from_file()
@@ -175,7 +176,7 @@ def index():
         for_coffee_only = 'for_coffee_only' in request.form
 
         if not validate_input(name):
-            error_message = "Bitte einen gültigen Namen eingeben."
+            error_message = "Bitte ein Rufzeichen oder vollständigen Namen eingeben."
         elif db_manager.participant_exists(name):
             return redirect(url_for('confirm_delete', name=name))
         else:
@@ -184,18 +185,19 @@ def index():
                 db_manager.add_brunch_entry(name, item, for_coffee_only)
                 error_message = f"Teilnehmer '{name}' als Kaffeetrinker hinzugefügt."
             else:
-                item = custom_item if custom_item else selected_item
-                if item in [entry[1] for entry in db_manager.get_brunch_info()]:
-                    error_message = f"Mitbringsel '{item}' ist bereits vergeben."
+                item_lower = (custom_item if custom_item else selected_item).lower()
+                if item_lower in [item.lower() for _, item, _ in db_manager.get_brunch_info()]:
+                    error_message = f"Mitbringsel '{custom_item if custom_item else selected_item}' ist bereits vergeben."
                 else:
-                    if custom_item and custom_item not in available_items:
+                    item_to_add = custom_item.lower().capitalize() if custom_item else selected_item
+                    if custom_item and item_lower not in [item.lower() for item in read_items_from_file()]:
                         add_item_to_file(custom_item)
-                    db_manager.add_brunch_entry(name, item, for_coffee_only)
-                    error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item}' hinzugefügt."
+                    db_manager.add_brunch_entry(name, item_to_add, for_coffee_only)
+                    error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item_to_add}' hinzugefügt."
 
             total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
             coffee_only_participants = db_manager.count_coffee_only_participants()
-            available_items = get_available_items()
+            available_items = get_available_items()  # Update available items list
 
     taken_items_info = db_manager.get_brunch_info()
     taken_items = [item for _, item, _ in taken_items_info if item]
