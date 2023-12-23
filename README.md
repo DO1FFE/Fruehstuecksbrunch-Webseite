@@ -34,7 +34,7 @@ Das Projekt *FrühstücksBrunchManager* ist eine Flask-basierte Webanwendung, di
    ```
 
 ## Benutzung
-Öffne deinen Webbrowser und gehe zu `http://localhost:8082/`, um die Anwendung zu verwenden. Für den Zugriff auf den Admin-Bereich ist eine Authentifizierung erforderlich.
+Öffne deinen Webbrowser und gehe zu `http://localhost:8082/`, um die Anwendung zu verwenden. Für den Zugriff auf den Admin-Bereich `http://localhost:8082/admin` ist eine Authentifizierung erforderlich.
 
 ## Autor
 Erik Schauer, DO1FFE - do1ffe@darc.de
