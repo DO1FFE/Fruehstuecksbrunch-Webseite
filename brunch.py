@@ -305,7 +305,6 @@ def confirm_delete(name):
 @requires_auth
 def admin_page():
     brunch_info = db_manager.get_brunch_info()
-    # Erstellen eines mailto-Links mit allen E-Mail-Adressen
     email_addresses = [entry[1] for entry in brunch_info if entry[1]]
     mailto_link = f"mailto:do1emc@darc.de?bcc={','.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
 
@@ -325,14 +324,16 @@ def admin_page():
                     <thead>
                         <tr class="bg-gray-200">
                             <th class="px-4 py-2">Name</th>
+                            <th class="px-4 py-2">E-Mail</th>
                             <th class="px-4 py-2">Mitbringsel</th>
                             <th class="px-4 py-2">Nur zum Kaffee</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for name, item, for_coffee_only in brunch_info %}
+                        {% for name, email, item, for_coffee_only in brunch_info %}
                         <tr>
                             <td class="border px-4 py-2">{{ name }}</td>
+                            <td class="border px-4 py-2">{{ email }}</td>
                             <td class="border px-4 py-2">{{ item }}</td>
                             <td class="border px-4 py-2">{{ 'Ja' if for_coffee_only else 'Nein' }}</td>
                         </tr>
