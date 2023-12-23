@@ -234,6 +234,10 @@ def index():
                             <td><input type="text" name="name" class="border p-2" id="name"></td>
                         </tr>
                         <tr>
+                            <td><label for="email">E-Mail:</label></td>
+                            <td><input type="email" name="email" class="border p-2" id="email"></td>
+                        </tr>
+                        <tr>
                             <td><label for="selected_item">Mitbringsel:</label></td>
                             <td>
                                 <select name="selected_item" class="border p-2" id="selected_item">
@@ -305,7 +309,7 @@ def admin_page():
     brunch_info = db_manager.get_brunch_info()
     # Erstellen eines mailto-Links mit allen E-Mail-Adressen
     email_addresses = [entry[1] for entry in brunch_info if entry[1]]
-    mailto_link = f"mailto:do1emc@darc.de?bcc={''.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
+    mailto_link = f"mailto:do1emc@darc.de?bcc={','.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
 
     return render_template_string("""
         <!DOCTYPE html>
