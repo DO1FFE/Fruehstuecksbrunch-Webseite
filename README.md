@@ -17,7 +17,7 @@ Das Projekt *FrühstücksBrunchManager* ist eine Flask-basierte Webanwendung, di
 ## Installation
 1. Klone das Repository:
    ```
-   git clone [URL-des-Repository]
+   git clone https://github.com/DO1FFE/Fruehstuecksbrunch-Webseite.git
    ```
 2. Installiere die benötigten Python-Pakete:
    ```
