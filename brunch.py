@@ -182,27 +182,25 @@ def index():
         custom_item = request.form.get('custom_item', '').strip()
         for_coffee_only = 'for_coffee_only' in request.form
 
-        # Validierung der E-Mail-Adresse
         if not validate_email(email):
             error_message = "Bitte eine gültige E-Mail-Adresse eingeben."
-        if not validate_input(name):
+        elif not validate_input(name):
             error_message = "Bitte ein Rufzeichen oder vollständigen Namen eingeben."
         elif db_manager.participant_exists(name):
             return redirect(url_for('confirm_delete', name=name))
         else:
             if for_coffee_only:
-                item = ''
-                db_manager.add_brunch_entry(name, item, for_coffee_only)
+                db_manager.add_brunch_entry(name, email, '', 1)
                 error_message = f"Teilnehmer '{name}' als Kaffeetrinker hinzugefügt."
             else:
                 item_lower = (custom_item if custom_item else selected_item).lower()
-                if item_lower in [item.lower() for _, item, _ in db_manager.get_brunch_info()]:
+                if item_lower in [item.lower() for _, _, item, _ in db_manager.get_brunch_info()]:
                     error_message = f"Mitbringsel '{custom_item if custom_item else selected_item}' ist bereits vergeben."
                 else:
                     item_to_add = custom_item.lower().capitalize() if custom_item else selected_item
                     if custom_item and item_lower not in [item.lower() for item in read_items_from_file()]:
                         add_item_to_file(custom_item)
-                    db_manager.add_brunch_entry(name, item_to_add, for_coffee_only)
+                    db_manager.add_brunch_entry(name, email, item_to_add, 0)
                     error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item_to_add}' hinzugefügt."
 
             total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
@@ -210,7 +208,7 @@ def index():
             available_items = get_available_items()  # Update available items list
 
     taken_items_info = db_manager.get_brunch_info()
-    taken_items = [item for _, item, _ in taken_items_info if item]
+    taken_items = [item for _, _, item, _ in taken_items_info if item]
     taken_items_str = ', '.join(taken_items)
 
     return render_template_string("""
