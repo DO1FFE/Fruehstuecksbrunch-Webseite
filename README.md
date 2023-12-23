@@ -1,31 +1,40 @@
-# Frühstücks-Brunch Anmeldesystem
+# FrühstücksBrunchManager
 
-Dieses Projekt implementiert ein einfaches Web-basiertes Anmeldesystem für ein monatliches Frühstücks-Brunch. Es ermöglicht den Teilnehmern, sich anzumelden, ein Mitbringsel auszuwählen oder nur zum Kaffee zu kommen. Die Anwendung berechnet auch die benötigte Anzahl von Brötchen basierend auf den Anmeldungen.
+## Überblick
+Das Projekt *FrühstücksBrunchManager* ist eine Flask-basierte Webanwendung, die zur Verwaltung von Teilnehmern und Mitbringseln für Frühstücksbrunches dient. Benutzer können sich anmelden, um etwas beizutragen oder einfach nur zum Kaffee zu kommen. Die Admin-Seite ermöglicht es, alle Teilnehmer zu sehen und eine E-Mail an alle zu senden.
 
 ## Features
+- Anmeldung für Teilnehmer mit Namen und E-Mail-Adresse
+- Auswahl von Mitbringseln oder Anmeldung nur zum Kaffee
+- Admin-Bereich zum Überblick aller Teilnehmer
+- Mailto-Link zur Kontaktaufnahme mit allen Teilnehmern
 
-- Anmeldung für ein monatliches Frühstücks-Brunch
-- Auswahl von Mitbringseln für das Frühstück
-- Option für Teilnehmer, sich nur zum Kaffee anzumelden
-- Automatische Berechnung der benötigten Brötchenanzahl
+## Voraussetzungen
+- Python 3.10 oder höher
+- Flask
+- SQLite3
 
 ## Installation
-
-1. Stellen Sie sicher, dass Python und Flask auf Ihrem System installiert sind.
-2. Klonen Sie das Repository auf Ihren lokalen Rechner.
+1. Klone das Repository:
+   ```
+   git clone [URL-des-Repository]
+   ```
+2. Installiere die benötigten Python-Pakete:
+   ```
+   pip install -r requirements.txt
+   ```
 3. Erstellen Sie eine `.pwd`-Datei im Hauptverzeichnis mit den Admin-Anmeldedaten im Format:
    ```
-   ADMIN_USERNAME=IhrBenutzername
-   ADMIN_PASSWORD=IhrPasswort
+   ADMIN_1:ADMIN_PASSWORD_1
+   ADMIN_2:ADMIN_PASSWORD_2
    ```
-4. Führen Sie das Skript mit `python FrühstücksBrunchManager.py` aus.
+4. Starte die Anwendung:
+   ```
+   python brunch.py
+   ```
 
 ## Benutzung
+Öffne deinen Webbrowser und gehe zu `http://localhost:8082/`, um die Anwendung zu verwenden. Für den Zugriff auf den Admin-Bereich ist eine Authentifizierung erforderlich.
 
-- Öffnen Sie einen Webbrowser und navigieren Sie zur Adresse `http://localhost:8083/`.
-- Melden Sie sich als Teilnehmer für das Brunch an, indem Sie Ihren Namen eingeben und ein Mitbringsel auswählen oder nur zum Kaffee kommen.
-- Die Teilnehmerliste und die benötigte Anzahl von Brötchen werden auf der Hauptseite angezeigt.
-
-## Kontakt
-
-Erik Schauer - do1ffe@darc.de
+## Autor
+Erik Schauer, DO1FFE - do1ffe@darc.de
