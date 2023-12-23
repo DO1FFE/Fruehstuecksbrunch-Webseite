@@ -71,21 +71,23 @@ class DatabaseManager:
     def init_db(self):
         conn = self.get_connection()
         c = conn.cursor()
+        # Hinzufügen der E-Mail-Spalte in der Datenbanktabelle
         c.execute('''CREATE TABLE IF NOT EXISTS brunch_participants 
-                     (name TEXT, item TEXT, for_coffee_only INTEGER)''')
+                     (name TEXT, email TEXT, item TEXT, for_coffee_only INTEGER)''')
         conn.commit()
 
-    def add_brunch_entry(self, name, item, for_coffee_only):
+    def add_brunch_entry(self, name, email, item, for_coffee_only):
         conn = self.get_connection()
         c = conn.cursor()
-        c.execute('INSERT INTO brunch_participants (name, item, for_coffee_only) VALUES (?, ?, ?)', 
-                  (name, item, for_coffee_only))
+        c.execute('INSERT INTO brunch_participants (name, email, item, for_coffee_only) VALUES (?, ?, ?, ?)', 
+                  (name, email, item, for_coffee_only))
         conn.commit()
 
     def get_brunch_info(self):
         conn = self.get_connection()
         c = conn.cursor()
-        c.execute('SELECT name, item, for_coffee_only FROM brunch_participants')
+        # Anpassung der Abfrage, um die E-Mail-Adresse einzuschließen
+        c.execute('SELECT name, email, item, for_coffee_only FROM brunch_participants')
         return c.fetchall()
 
     def reset_db(self):
@@ -141,6 +143,10 @@ def validate_input(text):
         return False
     return re.match(r'^[A-Za-z0-9äöüÄÖÜß\s\-]+$', text) is not None
 
+# Funktion zur Überprüfung der E-Mail-Adresse
+def validate_email(email):
+    return re.match(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$', email) is not None
+
 def read_items_from_file():
     try:
         with open('mitbringsel.txt', 'r') as file:
@@ -171,10 +177,14 @@ def index():
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
         selected_item = request.form.get('selected_item', '').strip()
         custom_item = request.form.get('custom_item', '').strip()
         for_coffee_only = 'for_coffee_only' in request.form
 
+        # Validierung der E-Mail-Adresse
+        if not validate_email(email):
+            error_message = "Bitte eine gültige E-Mail-Adresse eingeben."
         if not validate_input(name):
             error_message = "Bitte ein Rufzeichen oder vollständigen Namen eingeben."
         elif db_manager.participant_exists(name):
@@ -293,6 +303,10 @@ def confirm_delete(name):
 @requires_auth
 def admin_page():
     brunch_info = db_manager.get_brunch_info()
+    # Erstellen eines mailto-Links mit allen E-Mail-Adressen
+    email_addresses = [entry[1] for entry in brunch_info if entry[1]]
+    mailto_link = f"mailto:do1emc@darc.de?bcc={''.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
+
     return render_template_string("""
         <!DOCTYPE html>
         <html lang="de">
@@ -323,10 +337,11 @@ def admin_page():
                         {% endfor %}
                     </tbody>
                 </table>
+                <a href="{{ mailto_link }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">E-Mail an alle Teilnehmer senden</a>
             </div>
         </body>
         </html>
-    """, brunch_info=brunch_info, current_year=datetime.now().year)
+    """, brunch_info=brunch_info, current_year=datetime.now().year, mailto_link=mailto_link)
 
 def reset_database_at_event_time():
     while True:
