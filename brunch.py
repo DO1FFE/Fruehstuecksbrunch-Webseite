@@ -254,7 +254,7 @@ def index():
                                 </select>
                             </td>
                             <td class="small-text">
-                                <div>Von anderen bereits ausgewählte Mitbringsel:</div>
+                                <div><b>Von anderen bereits ausgewählte Mitbringsel:</b></div>
                                 <div>{{ taken_items_str }}</div>
                             </td>
                         </tr>
