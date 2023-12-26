@@ -222,6 +222,12 @@ def index():
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Frühstücks-Brunch Anmeldung - {{ next_brunch_date_str }}</title>
             <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            <style>
+                .small-text {
+                    font-size: 0.9em; /* Kleine Schriftgröße */
+                    font-weight: normal; /* Normales Schriftgewicht */
+                }
+            </style>
         </head>
         <body class="bg-gray-100">
             <div class="container mx-auto px-4">
@@ -247,7 +253,7 @@ def index():
                                     {% endfor %}
                                 </select>
                             </td>
-                            <td class="font-bold">
+                            <td class="small-text">
                                 <div>Bereits gewählte Mitbringsel:</div>
                                 <div>{{ taken_items_str }}</div>
                             </td>
