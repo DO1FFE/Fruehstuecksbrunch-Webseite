@@ -82,6 +82,7 @@ class DatabaseManager:
         c.execute('INSERT INTO brunch_participants (name, email, item, for_coffee_only) VALUES (?, ?, ?, ?)', 
                   (name, email, item, for_coffee_only))
         conn.commit()
+        logger.debug(f"Neuer Eintrag: {name}, {email}, {item}, {for_coffee_only}.")
 
     def get_brunch_info(self):
         conn = self.get_connection()
@@ -91,7 +92,7 @@ class DatabaseManager:
         return c.fetchall()
 
     def reset_db(self):
-        logger.info("Resetting the database")
+        logger.debug("Resetting the database")
         conn = self.get_connection()
         c = conn.cursor()
         c.execute('DELETE FROM brunch_participants')
@@ -158,6 +159,7 @@ def add_item_to_file(item):
     formatted_item = item.lower().capitalize()
     with open('mitbringsel.txt', 'a') as file:
         file.write(f"{formatted_item}\n")
+    logger.debug(f"Neues Mitbringsel {formatted_item} hinzugefügt.")
 
 def get_available_items():
     all_items = read_items_from_file()
@@ -174,6 +176,7 @@ def index():
     available_items = get_available_items()
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
     coffee_only_participants = db_manager.count_coffee_only_participants()
+    logger.debug()
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -277,6 +280,7 @@ def index():
 def confirm_delete(name):
     if request.method == 'POST':
         db_manager.delete_entry(name)
+        logger.debug(f"Eintrag für {name} aus Datenbank gelöscht.")
         return redirect(url_for('index'))
 
     return render_template_string("""
@@ -304,6 +308,7 @@ def confirm_delete(name):
 @brunch.route('/admin')
 @requires_auth
 def admin_page():
+    logger.debug(f"***** Admin-Bereich mittels Authentifizierung aufgerufen: {auth.username}")
     brunch_info = db_manager.get_brunch_info()
     email_addresses = [entry[1] for entry in brunch_info if entry[1]]
     mailto_link = f"mailto:do1emc@darc.de?bcc={','.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
@@ -354,6 +359,7 @@ def reset_database_at_event_time():
 
         if now >= next_reset_time:
             db_manager.reset_db()
+            logger.debug("Datenbank wurde resettet.")
             # Warte bis zum nächsten Tag, um erneut zu prüfen
             time.sleep(24 * 60 * 60)
         else:
