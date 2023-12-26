@@ -266,8 +266,8 @@ def index():
                         </tr>
                     </table>
                 </form>
-                <h2>Bereits gewählte Mitbringsel:</h2>
-                <p>{{ taken_items_str }}</p>
+                <h2 class="text-xl font-bold my-6">Bereits gewählte Mitbringsel:</h2>
+                <p class="text-black-400">{{ taken_items_str }}</p>
             </div>
             <footer class="bg-white text-center text-gray-700 p-4">
                 © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
