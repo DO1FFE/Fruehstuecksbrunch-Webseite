@@ -247,6 +247,10 @@ def index():
                                     {% endfor %}
                                 </select>
                             </td>
+                            <td class="font-bold">
+                                <div>Bereits gewählte Mitbringsel:</div>
+                                <div>{{ taken_items_str }}</div>
+                            </td>
                         </tr>
                         <tr>
                             <td><label for="custom_item">Oder neues Mitbringsel hinzufügen:</label></td>
@@ -266,8 +270,6 @@ def index():
                         </tr>
                     </table>
                 </form>
-                <h2 class="text-black-600 font-bold">Bereits gewählte Mitbringsel:</h2>
-                <p class="text-black-500 font-bold">{{ taken_items_str }}</p>
             </div>
             <footer class="bg-white text-center text-gray-700 p-4">
                 © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
