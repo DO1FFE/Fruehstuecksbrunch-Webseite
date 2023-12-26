@@ -176,7 +176,7 @@ def index():
     available_items = get_available_items()
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
     coffee_only_participants = db_manager.count_coffee_only_participants()
-    logger.debug()
+    logger.debug(f"Anfrage an die Startseite erhalten: Methode {request.method}")
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -308,7 +308,12 @@ def confirm_delete(name):
 @brunch.route('/admin')
 @requires_auth
 def admin_page():
-    logger.debug(f"***** Admin-Bereich mittels Authentifizierung aufgerufen: {auth.username}")
+    auth = request.authorization
+    if auth:
+        logger.debug(f"***** Admin-Bereich aufgerufen von Benutzer: {auth.username}")
+    else:
+        logger.debug("***** Admin-Bereich aufgerufen ohne Authentifizierungsinformationen")
+        
     brunch_info = db_manager.get_brunch_info()
     email_addresses = [entry[1] for entry in brunch_info if entry[1]]
     mailto_link = f"mailto:do1emc@darc.de?bcc={','.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
