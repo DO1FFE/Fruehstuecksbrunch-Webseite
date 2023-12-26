@@ -161,7 +161,7 @@ def add_item_to_file(item):
 
 def get_available_items():
     all_items = read_items_from_file()
-    taken_items = [entry[1] for entry in db_manager.get_brunch_info() if entry[1]]
+    taken_items = [entry[2] for entry in db_manager.get_brunch_info() if entry[2]]
     return [item for item in all_items if item not in taken_items]
 
 brunch = Flask(__name__)
