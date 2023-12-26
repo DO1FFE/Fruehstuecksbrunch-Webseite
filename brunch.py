@@ -263,7 +263,7 @@ def index():
                             <td><input type="text" name="custom_item" class="border p-2" id="custom_item"></td>
                         </tr>
                         <tr>
-                            <td><label for="for_coffee_only">Nur zum Kaffee:<br>(Mitbringsel wird ignoriert)</label></td>
+                            <td><label for="for_coffee_only">Nur zum Kaffeetrinken:<br>(Mitbringsel wird ignoriert)</label></td>
                             <td><input type="checkbox" name="for_coffee_only" id="for_coffee_only"></td>
                         </tr>
                         <tr>
