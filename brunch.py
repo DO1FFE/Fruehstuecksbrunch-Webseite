@@ -224,7 +224,7 @@ def index():
             <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
             <style>
                 .small-text {
-                    font-size: 0.9em; /* Kleine Schriftgröße */
+                    font-size: 0.7em; /* Kleine Schriftgröße */
                     font-weight: normal; /* Normales Schriftgewicht */
                 }
             </style>
@@ -254,7 +254,7 @@ def index():
                                 </select>
                             </td>
                             <td class="small-text">
-                                <div>Bereits gewählte Mitbringsel:</div>
+                                <div>Von anderen bereits ausgewählte Mitbringsel:</div>
                                 <div>{{ taken_items_str }}</div>
                             </td>
                         </tr>
