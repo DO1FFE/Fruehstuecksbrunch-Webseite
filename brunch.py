@@ -369,8 +369,7 @@ def admin_page():
                     </tbody>
                 </table>
                 <a href="{{ mailto_link }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">E-Mail an alle Teilnehmer senden</a>
-                <br><br>
-                <h2>Statistik</h2>
+                <br><br><br><br>
                 <img src="/statistik/teilnahmen_statistik.png" alt="Statistik">
                 <br><br>
             </div>
