@@ -11,6 +11,7 @@ import sqlite3
 import re
 import threading
 import time
+import pytz
 
 def setup_logger():
     logger = logging.getLogger('BrunchLogger')
@@ -125,19 +126,28 @@ class DatabaseManager:
 db_manager = DatabaseManager()
 
 def next_brunch_date():
-    now = datetime.now()
+    # Zeitzone für Europe/Berlin definieren
+    berlin_tz = pytz.timezone('Europe/Berlin')
+
+    # Aktuelle Zeit in Berliner Zeitzone
+    now = datetime.now(berlin_tz)
     month = now.month
     year = now.year
-    first_day_of_month = datetime(year, month, 1)
+
+    # Erster Tag des Monats in Berliner Zeitzone
+    first_day_of_month = berlin_tz.localize(datetime(year, month, 1))
     first_sunday = first_day_of_month + timedelta(days=(6 - first_day_of_month.weekday()) % 7)
     third_sunday = first_sunday + timedelta(days=14)
+
     if now > third_sunday:
         month = month % 12 + 1
         year = year + (month == 1)
-        first_day_of_next_month = datetime(year, month, 1)
+        first_day_of_next_month = berlin_tz.localize(datetime(year, month, 1))
         first_sunday_next_month = first_day_of_next_month + timedelta(days=(6 - first_day_of_next_month.weekday()) % 7)
         third_sunday = first_sunday_next_month + timedelta(days=14)
+
     return third_sunday.strftime('%d.%m.%Y')
+
 
 def validate_input(text):
     if text is None or text.strip() == "":
@@ -364,6 +374,20 @@ def admin_page():
         </html>
     """, brunch_info=brunch_info, current_year=datetime.now().year, mailto_link=mailto_link)
 
+def save_participant_log():
+    brunch_info = db_manager.get_brunch_info()
+
+    # Zeitzone für Europe/Berlin definieren
+    berlin_tz = pytz.timezone('Europe/Berlin')
+
+    # Aktuelle Zeit in Berliner Zeitzone
+    current_date = datetime.now(berlin_tz).strftime('%d.%m.%Y')
+
+    with open('teilnehmer.log', 'a') as log_file:
+        for name, _, item, _ in brunch_info:
+            log_file.write(f"{current_date} - {name} - {item}\n")
+    logger.debug("Teilnehmerlog wurde gespeichert.")
+
 def reset_database_at_event_time():
     while True:
         now = datetime.now()
@@ -371,8 +395,13 @@ def reset_database_at_event_time():
         next_reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
 
         if now >= next_reset_time:
+            # Speichern der Teilnehmerinformationen in eine Log-Datei
+            save_participant_log()
+
+            # Zurücksetzen der Datenbank
             db_manager.reset_db()
             logger.debug("Datenbank wurde resettet.")
+            
             # Warte bis zum nächsten Tag, um erneut zu prüfen
             time.sleep(24 * 60 * 60)
         else:
