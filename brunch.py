@@ -288,7 +288,7 @@ def index():
                 </form>
             </div>
             <footer class="bg-white text-center text-gray-700 p-4">
-                © {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
+                © 2023 - {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
             </footer>
         </body>
         </html>
@@ -420,4 +420,4 @@ reset_thread = threading.Thread(target=reset_database_at_event_time)
 reset_thread.start()
 
 if __name__ == '__main__':
-    brunch.run(host='0.0.0.0', port=8082, use_reloader=False)
+    brunch.run(host='0.0.0.0', port=8082, debug=True, use_reloader=False)
