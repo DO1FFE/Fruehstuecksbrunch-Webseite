@@ -13,7 +13,8 @@ import threading
 import time
 import pytz
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
 from io import BytesIO
 
@@ -413,6 +414,14 @@ def download_pdf():
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
 
+    # Überschriftstil definieren
+    header_style = ParagraphStyle(
+        'header_style',
+        fontSize=14,
+        alignment=1,  # zentriert
+        spaceAfter=20,  # Abstand nach dem Paragraphen
+    )
+
     # Daten für die Tabelle
     brunch_info = db_manager.get_brunch_info()
     data = [["Name", "E-Mail", "Mitbringsel", "Nur zum Kaffee"]]
@@ -435,7 +444,7 @@ def download_pdf():
 
     # Überschrift hinzufügen
     next_brunch_date_str = next_brunch_date()
-    elements = [Paragraph(f"L11 Frühstücksbrunch am {next_brunch_date_str}", style=header_style), table]
+    elements = [Paragraph(f"L11 Frühstücksbrunch am {next_brunch_date_str}", header_style), table]
 
     doc.build(elements)
 
