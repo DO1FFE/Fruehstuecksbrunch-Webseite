@@ -237,9 +237,13 @@ def index():
                     font-size: 0.7em; /* Kleine Schriftgröße */
                     font-weight: normal; /* Normales Schriftgewicht */
                 }
+                body {
+                    background-color: #2aa6da;
+                    color: white; /* Setzt die Textfarbe auf Weiß */
+                }
             </style>
         </head>
-        <body style="background-color: #2aa6da;">
+        <body>
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">L11 Frühstücks-Brunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10Uhr</h1>
                 <h2 class="text-xl font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
@@ -309,8 +313,14 @@ def confirm_delete(name):
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Teilnehmer löschen</title>
             <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            <style>
+                body {
+                    background-color: #2aa6da;
+                    color: white; /* Setzt die Textfarbe auf Weiß */
+                }
+            </style>
         </head>
-        <body style="background-color: #2aa6da;">
+        <body>
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">Teilnehmer löschen</h1>
                 <p>Möchtest du <b> {{ name }} </b> wirklich löschen?</p>
@@ -344,8 +354,14 @@ def admin_page():
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Admin - Frühstücks-Brunch</title>
             <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            <style>
+                body {
+                    background-color: #2aa6da;
+                    color: white; /* Setzt die Textfarbe auf Weiß */
+                }
+            </style>
         </head>
-        <body style="background-color: #2aa6da;">
+        <body>
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">Admin-Seite: Frühstücks-Brunch</h1>
                 <table class="table-auto w-full mb-6">
