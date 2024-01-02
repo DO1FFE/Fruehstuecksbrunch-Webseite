@@ -250,6 +250,10 @@ def index():
                 select {
                     color: black; /* Setzt die Textfarbe in Eingabefeldern auf Schwarz */
                 }
+                input[type="checkbox"] {
+                    transform: scale(2); /* Vergrößert die Checkbox */
+                    margin: 5px; /* Fügt etwas Abstand um die Checkbox hinzu */
+                }
             </style>
         </head>
         <body>
