@@ -235,7 +235,7 @@ def index():
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Frühstücks-Brunch Anmeldung - {{ next_brunch_date_str }}</title>
+            <title>L11 Frühstücksbrunch Anmeldung</title>
             <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
             <style>
                 .small-text {
@@ -254,7 +254,7 @@ def index():
         </head>
         <body>
             <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">L11 Frühstücks-Brunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10Uhr</h1>
+                <h1 class="text-3xl font-bold text-center my-6">L11 Frühstücksbrunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10Uhr</h1>
                 <h2 class="text-xl font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
                 <p class="text-red-500">{{ error_message }}</p>
                 <form method="post" class="mb-4">
