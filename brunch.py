@@ -359,6 +359,9 @@ def admin_page():
                     background-color: #2aa6da;
                     color: white; /* Setzt die Textfarbe auf Weiß */
                 }
+                thead th {
+                    color: black; /* Setzt die Textfarbe in <thead> auf Schwarz */
+                }
             </style>
         </head>
         <body>
