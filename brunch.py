@@ -2,7 +2,7 @@
 # Autor: Erik Schauer, DO1FFE, do1ffe@darc.de
 # Erstelldatum: 2023-12-16
 
-from flask import Flask, request, render_template_string, Response, redirect, url_for, send_from_directory
+from flask import Flask, request, render_template_string, Response, redirect, url_for, send_from_directory, send_file
 from functools import wraps
 from datetime import datetime, timedelta
 import logging
@@ -14,6 +14,7 @@ import time
 import pytz
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
 from io import BytesIO
 
 def setup_logger():
