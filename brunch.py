@@ -246,7 +246,8 @@ def index():
                     background-color: #2aa6da;
                     color: white; /* Setzt die Textfarbe auf Weiß */
                 }
-                input {
+                input,
+                select {
                     color: black; /* Setzt die Textfarbe in Eingabefeldern auf Schwarz */
                 }
             </style>
