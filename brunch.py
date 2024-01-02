@@ -12,6 +12,9 @@ import re
 import threading
 import time
 import pytz
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from io import BytesIO
 
 def setup_logger():
     logger = logging.getLogger('BrunchLogger')
@@ -388,6 +391,8 @@ def admin_page():
                     </tbody>
                 </table>
                 <a href="{{ mailto_link }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">E-Mail an alle Teilnehmer senden</a>
+                &nbsp;&nbsp;
+                <a href="{{ url_for('download_pdf') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Tabelle als PDF herunterladen</a>
                 <br><br><br><br>
                 <img src="/statistik/teilnahmen_statistik.png" alt="Statistik">
                 <br><br>
@@ -400,6 +405,32 @@ def admin_page():
 @brunch.route('/statistik/<filename>')
 def statistik(filename):
     return send_from_directory('statistik', filename)
+
+@brunch.route('/admin/download_pdf')
+@requires_auth
+def download_pdf():
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter, bottomup=0)
+    textob = c.beginText()
+    textob.setTextOrigin(inch, inch)
+    textob.setFont("Helvetica", 12)
+
+    brunch_info = db_manager.get_brunch_info()
+    lines = ["Name, E-Mail, Mitbringsel, Nur zum Kaffee"]
+
+    for entry in brunch_info:
+        line = f"{entry[0]}, {entry[1]}, {entry[2]}, {'Ja' if entry[3] else 'Nein'}"
+        lines.append(line)
+
+    for line in lines:
+        textob.textLine(line)
+
+    c.drawText(textob)
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+
+    return send_file(buffer, as_attachment=True, attachment_filename='brunch_liste.pdf', mimetype='application/pdf')
 
 def save_participant_log():
     brunch_info = db_manager.get_brunch_info()
