@@ -13,8 +13,8 @@ import threading
 import time
 import pytz
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.lib import colors
 from io import BytesIO
 
 def setup_logger():
@@ -411,26 +411,35 @@ def statistik(filename):
 @requires_auth
 def download_pdf():
     buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter, bottomup=0)
-    textob = c.beginText()
-    textob.setTextOrigin(inch, inch)
-    textob.setFont("Helvetica", 12)
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
 
+    # Daten für die Tabelle
     brunch_info = db_manager.get_brunch_info()
-    lines = ["Name, E-Mail, Mitbringsel, Nur zum Kaffee"]
+    data = [["Name", "E-Mail", "Mitbringsel", "Nur zum Kaffee"]]
+    data += [[entry[0], entry[1], entry[2], 'Ja' if entry[3] else 'Nein'] for entry in brunch_info]
 
-    for entry in brunch_info:
-        line = f"{entry[0]}, {entry[1]}, {entry[2]}, {'Ja' if entry[3] else 'Nein'}"
-        lines.append(line)
+    # Tabelle erstellen
+    table = Table(data)
 
-    for line in lines:
-        textob.textLine(line)
+    # Stil der Tabelle
+    style = TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('TEXTCOLOR',(0,0),(-1,0),colors.whitesmoke),
+        ('ALIGN',(0,0),(-1,-1),'CENTER'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0,0), (-1,0), 12),
+        ('BACKGROUND',(0,1),(-1,-1),colors.beige),
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+    ])
+    table.setStyle(style)
 
-    c.drawText(textob)
-    c.showPage()
-    c.save()
+    # Überschrift hinzufügen
+    next_brunch_date_str = next_brunch_date()
+    elements = [Paragraph(f"L11 Frühstücksbrunch am {next_brunch_date_str}", style=header_style), table]
+
+    doc.build(elements)
+
     buffer.seek(0)
-
     return send_file(buffer, as_attachment=True, attachment_filename='brunch_liste.pdf', mimetype='application/pdf')
 
 def save_participant_log():
