@@ -153,15 +153,18 @@ def next_brunch_date():
 
     return third_sunday.strftime('%d.%m.%Y')
 
-def validate_input(text):
+def validate_name_or_call(text):
     """
-    Überprüft, ob der Text gültig ist.
-    Gültiger Text darf maximal zwei Wörter enthalten und keine Sonderzeichen (außer Leerzeichen).
+    Überprüft, ob der Text ein gültiges Rufzeichen oder einen Namen darstellt.
+    Erlaubt sind Buchstaben, Zahlen und bestimmte Sonderzeichen.
     """
-    if text is None or text.strip() == "":
-        return False
+    return re.match(r'^[A-Za-z0-9äöüÄÖÜß\-]+$', text) is not None
 
-    # Regex für maximal zwei Wörter ohne Sonderzeichen (nur Buchstaben und Leerzeichen)
+def validate_bringalong(text):
+    """
+    Überprüft, ob das Mitbringsel gültig ist.
+    Gültig sind maximal zwei Wörter ohne Sonderzeichen (außer Leerzeichen).
+    """
     return re.match(r'^[A-Za-zäöüÄÖÜß]+( [A-Za-zäöüÄÖÜß]+)?$', text) is not None
 
 # Funktion zur Überprüfung der E-Mail-Adresse
@@ -207,9 +210,9 @@ def index():
 
         if not validate_email(email):
             error_message = "Bitte eine gültige E-Mail-Adresse eingeben."
-        elif not validate_input(name):
-            error_message = "Bitte ein Rufzeichen oder vollständigen Namen eingeben."
-        elif custom_item and not validate_input(custom_item):
+        elif not validate_name_or_call(name):
+            error_message = "Bitte ein gültiges Rufzeichen oder einen vollständigen Namen eingeben."
+        elif custom_item and not validate_bringalong(custom_item):
             error_message = "Das Mitbringsel darf nur aus maximal zwei Worten ohne Sonderzeichen bestehen."
         elif db_manager.participant_exists(name):
             return redirect(url_for('confirm_delete', name=name))
