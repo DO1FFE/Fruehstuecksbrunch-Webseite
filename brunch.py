@@ -128,6 +128,19 @@ class DatabaseManager:
         c.execute('SELECT COUNT(*) FROM brunch_participants WHERE for_coffee_only = 1')
         return c.fetchone()[0]
 
+    def update_entry(self, old_name, new_name, email, item, for_coffee_only):
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute('UPDATE brunch_participants SET name = ?, email = ?, item = ?, for_coffee_only = ? WHERE name = ?',
+                  (new_name, email, item, for_coffee_only, old_name))
+        conn.commit()
+
+    def get_entry(self, name):
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute('SELECT * FROM brunch_participants WHERE name = ?', (name,))
+        return c.fetchone()
+        
 db_manager = DatabaseManager()
 
 def next_brunch_date():
@@ -414,6 +427,9 @@ def admin_page():
                             <td class="border px-4 py-2">{{ email }}</td>
                             <td class="border px-4 py-2">{{ item }}</td>
                             <td class="border px-4 py-2">{{ 'Ja' if for_coffee_only else 'Nein' }}</td>
+                            <td class="border px-4 py-2">
+                                <a href="{{ url_for('edit_entry', name=name) }}">Bearbeiten</a>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -483,6 +499,51 @@ def admin_mitbringsel():
         </body>
         </html>
     """, items_str=items_str)
+
+@brunch.route('/admin/edit/<name>', methods=['GET', 'POST'])
+@requires_auth
+def edit_entry(name):
+    entry = db_manager.get_entry(name)
+
+    if request.method == 'POST':
+        # Daten aus dem Formular auslesen
+        updated_name = request.form['name']
+        updated_email = request.form['email']
+        updated_item = request.form['item']
+        updated_for_coffee_only = 'for_coffee_only' in request.form
+
+        # Update in der Datenbank durchführen
+        db_manager.update_entry(name, updated_name, updated_email, updated_item, updated_for_coffee_only)
+        
+        return redirect(url_for('admin_page'))
+
+    return render_template_string("""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Eintrag Bearbeiten</title>
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        </head>
+        <body>
+            <div class="container mx-auto px-4">
+                <h1 class="text-3xl font-bold text-center my-6">Eintrag Bearbeiten</h1>
+                <form method="post">
+                    <label for="name">Name:</label><br>
+                    <input type="text" id="name" name="name" value="{{ entry[0] }}"><br>
+                    <label for="email">E-Mail:</label><br>
+                    <input type="email" id="email" name="email" value="{{ entry[1] }}"><br>
+                    <label for="item">Mitbringsel:</label><br>
+                    <input type="text" id="item" name="item" value="{{ entry[2] }}"><br>
+                    <input type="checkbox" id="for_coffee_only" name="for_coffee_only" {{ 'checked' if entry[3] else '' }}>
+                    <label for="for_coffee_only">Nur zum Kaffeetrinken</label><br><br>
+                    <input type="submit" value="Änderungen speichern">
+                </form>
+            </div>
+        </body>
+        </html>
+    """, entry=entry)
 
 # Route für das Ausliefern von Statistiken hinzufügen
 @brunch.route('/statistik/<filename>')
