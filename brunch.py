@@ -169,9 +169,9 @@ def next_brunch_date():
 def validate_name_or_call(text):
     """
     Überprüft, ob der Text ein gültiges Rufzeichen oder einen Namen darstellt.
-    Erlaubt sind Buchstaben, Zahlen und bestimmte Sonderzeichen.
+    Erlaubt sind Buchstaben, Zahlen, Leerzeichen und bestimmte Sonderzeichen.
     """
-    return re.match(r'^[A-Za-z0-9äöüÄÖÜß\-]+$', text) is not None
+    return re.match(r'^[A-Za-z0-9äöüÄÖÜß\- ]+$', text) is not None
 
 def validate_bringalong(text):
     """
