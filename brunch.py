@@ -197,6 +197,7 @@ def index():
     next_brunch_date_str = next_brunch_date()
     error_message = ""
     available_items = get_available_items()
+    no_items_available = len(available_items) == 0
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
     coffee_only_participants = db_manager.count_coffee_only_participants()
     logger.debug(f"Anfrage an die Startseite erhalten: Methode {request.method}")
@@ -284,11 +285,15 @@ def index():
                         <tr>
                             <td><label for="selected_item">Mitbringsel:</label></td>
                             <td>
-                                <select name="selected_item" class="border p-2" id="selected_item">
+                                {% if no_items_available %}
+                                    <input type="text" name="selected_item" class="border p-2" id="selected_item" value="Bitte selbst hinzufügen" disabled>
+                                {% else %}
+                                    <select name="selected_item" class="border p-2" id="selected_item">
                                     {% for item in available_items %}
                                         <option value="{{ item }}">{{ item }}</option>
                                     {% endfor %}
-                                </select>
+                                    </select>
+                                {% endif %}
                             </td>
                             <td class="small-text">
                                 <div><b>Von anderen bereits ausgewählte Mitbringsel:</b></div>
@@ -319,7 +324,7 @@ def index():
             </footer>
         </body>
         </html>
-    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year)
+    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year, no_items_available=no_items_available)
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
