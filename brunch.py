@@ -428,7 +428,7 @@ def admin_page():
                             <td class="border px-4 py-2">{{ item }}</td>
                             <td class="border px-4 py-2">{{ 'Ja' if for_coffee_only else 'Nein' }}</td>
                             <td class="border px-4 py-2">
-                                <a href="{{ url_for('edit_entry', name=name) }}">Bearbeiten</a>
+                                <a href="{{ url_for('edit_entry', name=name) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Bearbeiten</a>
                             </td>
                         </tr>
                         {% endfor %}
@@ -529,16 +529,44 @@ def edit_entry(name):
         <body>
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">Eintrag Bearbeiten</h1>
+                <style>
+                    .form-input {
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        padding: 8px 12px;
+                        margin: 8px 0;
+                    }
+                    .form-label {
+                        font-weight: bold;
+                        margin-top: 12px;
+                    }
+                    .form-submit {
+                        background-color: #4CAF50;
+                        color: white;
+                        padding: 12px 20px;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                    }
+                    .form-submit:hover {
+                        background-color: #45a049;
+                    }
+                </style>
+                
                 <form method="post">
-                    <label for="name">Name:</label><br>
-                    <input type="text" id="name" name="name" value="{{ entry[0] }}"><br>
-                    <label for="email">E-Mail:</label><br>
-                    <input type="email" id="email" name="email" value="{{ entry[1] }}"><br>
-                    <label for="item">Mitbringsel:</label><br>
-                    <input type="text" id="item" name="item" value="{{ entry[2] }}"><br>
+                    <label for="name" class="form-label">Name:</label><br>
+                    <input type="text" id="name" name="name" value="{{ entry[0] }}" class="form-input"><br>
+                
+                    <label for="email" class="form-label">E-Mail:</label><br>
+                    <input type="email" id="email" name="email" value="{{ entry[1] }}" class="form-input"><br>
+                
+                    <label for="item" class="form-label">Mitbringsel:</label><br>
+                    <input type="text" id="item" name="item" value="{{ entry[2] }}" class="form-input"><br>
+                
                     <input type="checkbox" id="for_coffee_only" name="for_coffee_only" {{ 'checked' if entry[3] else '' }}>
-                    <label for="for_coffee_only">Nur zum Kaffeetrinken</label><br><br>
-                    <input type="submit" value="Änderungen speichern">
+                    <label for="for_coffee_only" class="form-label">Nur zum Kaffeetrinken</label><br><br>
+                
+                    <input type="submit" value="Änderungen speichern" class="form-submit">
                 </form>
             </div>
         </body>
