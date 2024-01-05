@@ -289,7 +289,7 @@ def index():
                             <td><label for="selected_item">Mitbringsel:</label></td>
                             <td>
                                 {% if no_items_available %}
-                                    <input type="text" name="selected_item" class="border p-2" id="selected_item" value="Bitte selbst hinzufügen" disabled>
+                                    <input type="text" name="selected_item" class="border p-2 disabled-field" id="selected_item" value="Bitte selbst hinzufügen" disabled>
                                 {% else %}
                                     <select name="selected_item" class="border p-2" id="selected_item">
                                     {% for item in available_items %}
