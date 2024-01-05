@@ -413,6 +413,8 @@ def admin_page():
                 <a href="{{ mailto_link }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">E-Mail an alle Teilnehmer senden</a>
                 &nbsp;&nbsp;
                 <a href="{{ url_for('download_pdf') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Tabelle als PDF herunterladen</a>
+                &nbsp;&nbsp;
+                <a href="{{ url_for('admin_mitbringsel') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Mitbringsel editieren</a>
                 <br><br><br><br>
                 <img src="/statistik/teilnahmen_statistik.png" alt="Statistik">
                 <br><br>
@@ -420,6 +422,59 @@ def admin_page():
         </body>
         </html>
     """, brunch_info=brunch_info, current_year=datetime.now().year, mailto_link=mailto_link)
+
+# Route zum Anzeigen und Bearbeiten der Mitbringsel-Liste
+@brunch.route('/admin/mitbringsel', methods=['GET', 'POST'])
+@requires_auth
+def admin_mitbringsel():
+    if request.method == 'POST':
+        # Aktualisierte Liste der Mitbringsel aus dem Formular erhalten
+        updated_items = request.form.get('mitbringsel_list').split('\n')
+        updated_items = [item.strip() for item in updated_items if item.strip()]
+        
+        # Aktualisierte Liste in die Datei schreiben
+        with open('mitbringsel.txt', 'w') as file:
+            for item in updated_items:
+                file.write(f"{item}\n")
+
+        return redirect(url_for('admin_mitbringsel'))
+
+    # Vorhandene Mitbringsel aus der Datei lesen
+    items = read_items_from_file()
+    items_str = '\n'.join(items)
+
+    return render_template_string("""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Admin - Mitbringsel bearbeiten</title>
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            <style>
+                body {
+                    background-color: #2aa6da;
+                    color: white;
+                }
+                textarea {
+                    width: 100%;
+                    height: 200px;
+                    color: black;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container mx-auto px-4">
+                <h1 class="text-3xl font-bold text-center my-6">Mitbringsel bearbeiten</h1>
+                <form method="post">
+                    <textarea name="mitbringsel_list">{{ items_str }}</textarea><br>
+                    <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Speichern</button>
+                    <a href="{{ url_for('admin_page') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Zurück zum Admin-Bereich</a>
+                </form>
+            </div>
+        </body>
+        </html>
+    """, items_str=items_str)
 
 # Route für das Ausliefern von Statistiken hinzufügen
 @brunch.route('/statistik/<filename>')
