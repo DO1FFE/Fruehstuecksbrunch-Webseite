@@ -552,6 +552,16 @@ def edit_entry(name):
                         background-color: #45a049;
                     }
                 </style>
+
+                <script>
+                    function handleCoffeeOnlyChange() {
+                        var checkBox = document.getElementById('for_coffee_only');
+                        var itemInput = document.getElementById('item');
+                        if (checkBox.checked) {
+                            itemInput.value = '';
+                        }
+                    }
+                </script>
                 
                 <form method="post">
                     <label for="name" class="form-label">Name:</label><br>
@@ -563,7 +573,7 @@ def edit_entry(name):
                     <label for="item" class="form-label">Mitbringsel:</label><br>
                     <input type="text" id="item" name="item" value="{{ entry[2] }}" class="form-input"><br>
                 
-                    <input type="checkbox" id="for_coffee_only" name="for_coffee_only" {{ 'checked' if entry[3] else '' }}>
+                    <input type="checkbox" id="for_coffee_only" name="for_coffee_only" {{ 'checked' if entry[3] else '' }} onchange="handleCoffeeOnlyChange()">
                     <label for="for_coffee_only" class="form-label">Nur zum Kaffeetrinken</label><br><br>
                 
                     <input type="submit" value="Änderungen speichern" class="form-submit">
