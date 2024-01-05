@@ -265,6 +265,9 @@ def index():
                     transform: scale(2); /* Vergrößert die Checkbox */
                     margin: 5px; /* Fügt etwas Abstand um die Checkbox hinzu */
                 }
+                .disabled-field {
+                    background-color: #f0f0f0; /* Ausgegraute Hintergrundfarbe */
+                }
             </style>
         </head>
         <body>
