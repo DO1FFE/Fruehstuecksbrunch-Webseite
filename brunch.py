@@ -575,9 +575,10 @@ def edit_entry(name):
                 
                     <input type="checkbox" id="for_coffee_only" name="for_coffee_only" {{ 'checked' if entry[3] else '' }} onchange="handleCoffeeOnlyChange()">
                     <label for="for_coffee_only" class="form-label">Nur zum Kaffeetrinken</label><br><br>
-                
-                    <input type="submit" value="Änderungen speichern" class="form-submit">
-                </form>
+
+                    <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Speichern</button>
+                    <a href="{{ url_for('admin_page') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Zurück zum Admin-Bereich</a>
+                    </form>
             </div>
         </body>
         </html>
