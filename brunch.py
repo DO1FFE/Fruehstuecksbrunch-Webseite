@@ -210,7 +210,8 @@ def index():
     next_brunch_date_str = next_brunch_date()
     error_message = ""
     available_items = get_available_items()
-    no_items_available = len(available_items) == 0
+    # Änderung: Kein graues Kästchen, wenn noch Mitbringsel auswählbar sind
+    no_items_available = len(available_items) == 0 and not any(item.lower() not in [entry[2].lower() for entry in db_manager.get_brunch_info()] for item in read_items_from_file())
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
     coffee_only_participants = db_manager.count_coffee_only_participants()
     logger.debug(f"Anfrage an die Startseite erhalten: Methode {request.method}")
