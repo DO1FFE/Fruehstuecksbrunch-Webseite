@@ -176,9 +176,9 @@ def validate_name_or_call(text):
 def validate_bringalong(text):
     """
     Überprüft, ob das Mitbringsel gültig ist.
-    Gültig sind maximal zwei Wörter ohne Sonderzeichen (außer Leerzeichen).
+    Gültig ist nur ein Wort, Sonderzeichen wie Bindestriche sind erlaubt.
     """
-    return re.match(r'^[A-Za-zäöüÄÖÜß]+( [A-Za-zäöüÄÖÜß]+)?$', text) is not None
+    return re.match(r'^[A-Za-zäöüÄÖÜß\-]+$', text) is not None
 
 # Funktion zur Überprüfung der E-Mail-Adresse
 def validate_email(email):
