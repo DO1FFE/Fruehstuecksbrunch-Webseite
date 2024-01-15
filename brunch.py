@@ -17,6 +17,41 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
 from io import BytesIO
+import requests
+
+class DAPNET:
+    """
+    Diese Klasse implementiert einen Client für die DAPNET API.
+    Sie ermöglicht das Senden von Nachrichten über das DAPNET-Netzwerk.
+    """
+
+    def __init__(self, callsign, password, url='http://dapnet.db0sda.ampr.org:8080/calls'):
+        self.callsign = callsign
+        self.password = password
+        self.url = url
+        self.headers = {'Content-type': 'application/json'}
+
+    def send_message(self, message, destination_callsign, tx_group, emergency=False):
+        data = {
+            "text": message,
+            "callSignNames": [destination_callsign] if isinstance(destination_callsign, str) else destination_callsign,
+            "transmitterGroupNames": [tx_group] if isinstance(tx_group, str) else tx_group,
+            "emergency": emergency
+        }
+        response = requests.post(self.url, headers=self.headers, auth=(self.callsign, self.password), json=data)
+        return response
+
+    def log_message(self, message, destination_callsign, transmitter_group, emergency=False):
+        """
+        Sendet eine Logging-Nachricht über das DAPNET-Netzwerk.
+
+        :param message: Der Inhalt der Nachricht.
+        :param destination_callsign: Das Zielrufzeichen für die Nachricht.
+        :param transmitter_group: Die Transmittergruppe für die Nachricht.
+        :param emergency: Notfall-Flag (Standard False).
+        :return: Das Response-Objekt der HTTP-Anfrage.
+        """
+        return self.send_message(message, destination_callsign, transmitter_group, emergency)
 
 def setup_logger():
     logger = logging.getLogger('BrunchLogger')
@@ -37,6 +72,7 @@ def load_credentials():
         return credentials
 
 credentials = load_credentials()
+dapnet_client = DAPNET(credentials['dapnet_username'], credentials['dapnet_password'])
 
 # Überprüfen der Anmeldedaten
 def check_auth(username, password):
@@ -89,6 +125,12 @@ class DatabaseManager:
                   (name, email, item, for_coffee_only))
         conn.commit()
         logger.debug(f"Neuer Eintrag: {name}, {email}, {item}, {for_coffee_only}.")
+        dapnet_client.log_message(
+            f"Frühstück: Neuer Eintrag: {name}, {email}, {item}, {for_coffee_only}.",
+            'DO1FFE',
+            'all',
+            False
+        )
 
     def get_brunch_info(self):
         conn = self.get_connection()
@@ -348,6 +390,13 @@ def confirm_delete(name):
     if request.method == 'POST':
         db_manager.delete_entry(name)
         logger.debug(f"Eintrag für {name} aus Datenbank gelöscht.")
+        dapnet_client.log_message(
+            f"Frühstück: Eintrag für {name} aus Datenbank gelöscht.",
+            'DO1FFE',
+            'all',
+            False
+        )
+
         return redirect(url_for('index'))
 
     return render_template_string("""
