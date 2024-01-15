@@ -25,7 +25,7 @@ class DAPNET:
     Sie ermöglicht das Senden von Nachrichten über das DAPNET-Netzwerk.
     """
 
-    def __init__(self, callsign, password, url='http://dapnet.db0sda.ampr.org:8080/calls'):
+    def __init__(self, callsign, password, url='http://www.hampager.de:8080/calls'):
         self.callsign = callsign
         self.password = password
         self.url = url
