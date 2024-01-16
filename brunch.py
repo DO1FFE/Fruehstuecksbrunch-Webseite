@@ -41,17 +41,19 @@ class DAPNET:
         response = requests.post(self.url, headers=self.headers, auth=(self.callsign, self.password), json=data)
         return response
 
-    def log_message(self, message, destination_callsign, transmitter_group, emergency=False):
+    def log_message(self, message, destination_callsigns, transmitter_group, emergency=False):
         """
         Sendet eine Logging-Nachricht über das DAPNET-Netzwerk.
 
         :param message: Der Inhalt der Nachricht.
-        :param destination_callsign: Das Zielrufzeichen für die Nachricht.
+        :param destination_callsigns: Eine Liste von Zielrufzeichen für die Nachricht.
         :param transmitter_group: Die Transmittergruppe für die Nachricht.
         :param emergency: Notfall-Flag (Standard False).
         :return: Das Response-Objekt der HTTP-Anfrage.
         """
-        return self.send_message(message, destination_callsign, transmitter_group, emergency)
+        if isinstance(destination_callsigns, str):
+            destination_callsigns = [destination_callsigns]
+        return self.send_message(message, destination_callsigns, transmitter_group, emergency)
 
 def setup_logger():
     logger = logging.getLogger('BrunchLogger')
@@ -127,7 +129,7 @@ class DatabaseManager:
         logger.debug(f"Neuer Eintrag: {name}, {email}, {item}, {for_coffee_only}.")
         dapnet_client.log_message(
             f"Frühstück: Neuer Eintrag: {name}, {email}, {item}, {for_coffee_only}.",
-            'DO1FFE',
+            ['DO1FFE', 'DO1EMC'],  # Mehrere Empfänger als Liste
             'all',
             False
         )
@@ -392,7 +394,7 @@ def confirm_delete(name):
         logger.debug(f"Eintrag für {name} aus Datenbank gelöscht.")
         dapnet_client.log_message(
             f"Frühstück: Eintrag für {name} aus Datenbank gelöscht.",
-            'DO1FFE',
+            ['DO1FFE', 'DO1EMC'],  # Mehrere Empfänger als Liste
             'all',
             False
         )
