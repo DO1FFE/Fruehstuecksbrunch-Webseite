@@ -727,7 +727,7 @@ def save_participant_log():
 
     with open('teilnahmen.log', 'a') as log_file:
         for name, _, item, _ in brunch_info:
-            log_file.write(f"{current_date} - {name} - {item}\n")
+            log_file.write(f"{current_date}, {name}, {item}\n")
     logger.debug("Teilnehmerlog wurde gespeichert.")
 
 def should_reset_database():
