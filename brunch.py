@@ -738,8 +738,7 @@ def should_reset_database():
     reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
 
     #logger.debug(f"Aktuelle Zeit: {now}, Nächstes Brunch: {next_brunch}, Reset-Zeit: {reset_time}")
-    #return now >= reset_time
-    return True
+    return now >= reset_time
 
 def reset_database_at_event_time():
     while True:
