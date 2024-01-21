@@ -217,6 +217,7 @@ def is_registration_open():
     next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_date(), '%d.%m.%Y'))
     friday_before_brunch = next_brunch - timedelta(days=2)
 
+    # Stellen Sie sicher, dass friday_before_brunch und next_brunch auf Mitternacht bzw. 15 Uhr gesetzt sind
     friday_before_brunch = friday_before_brunch.replace(hour=0, minute=0, second=0, microsecond=0)
     brunch_end_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
 
