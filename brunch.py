@@ -444,6 +444,19 @@ def confirm_delete(name):
         </html>
     """, name=name)
 
+@brunch.route('/admin/delete/<name>', methods=['POST'])
+@requires_auth
+def delete_entry(name):
+    db_manager.delete_entry(name)
+    logger.debug(f"Eintrag für {name} aus der Datenbank gelöscht.")
+    dapnet_client.log_message(
+        f"Frühstück: Eintrag für {name} aus der Datenbank gelöscht.",
+        ['DO1FFE', 'DO1EMC'],  # Mehrere Empfänger als Liste
+        'all',
+        False
+    )
+    return redirect(url_for('admin_page'))
+
 @brunch.route('/admin')
 @requires_auth
 def admin_page():
@@ -468,10 +481,10 @@ def admin_page():
             <style>
                 body {
                     background-color: #2aa6da;
-                    color: white; /* Setzt die Textfarbe auf Weiß */
+                    color: white;
                 }
                 thead th {
-                    color: black; /* Setzt die Textfarbe in <thead> auf Schwarz */
+                    color: black;
                 }
             </style>
         </head>
@@ -485,6 +498,7 @@ def admin_page():
                             <th class="px-4 py-2">E-Mail</th>
                             <th class="px-4 py-2">Mitbringsel</th>
                             <th class="px-4 py-2">Nur zum Kaffee</th>
+                            <th class="px-4 py-2">Aktionen</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -496,6 +510,9 @@ def admin_page():
                             <td class="border px-4 py-2">{{ 'Ja' if for_coffee_only else 'Nein' }}</td>
                             <td class="border px-4 py-2">
                                 <a href="{{ url_for('edit_entry', name=name) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Bearbeiten</a>
+                                <form action="{{ url_for('delete_entry', name=name) }}" method="post" style="display: inline;">
+                                    <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Löschen</button>
+                                </form>
                             </td>
                         </tr>
                         {% endfor %}
