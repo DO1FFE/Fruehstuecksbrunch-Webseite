@@ -212,11 +212,18 @@ def next_brunch_date():
     return third_sunday.strftime('%d.%m.%Y')
 
 def is_registration_open():
-    # Gibt True zurück, wenn die Registrierung offen sein sollte, sonst False
-    now = datetime.now(pytz.timezone('Europe/Berlin'))
-    next_brunch = datetime.strptime(next_brunch_date(), '%d.%m.%Y')
+    # Zeitzone für Europe/Berlin definieren
+    berlin_tz = pytz.timezone('Europe/Berlin')
+
+    # Aktuelle Zeit in Berliner Zeitzone
+    now = datetime.now(berlin_tz)
+    next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_date(), '%d.%m.%Y'))
     friday_before_brunch = next_brunch - timedelta(days=2)
-    return now < friday_before_brunch.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Stellen Sie sicher, dass friday_before_brunch auf Mitternacht gesetzt ist
+    friday_before_brunch = friday_before_brunch.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    return now < friday_before_brunch
 
 def validate_name_or_call(text):
     """
