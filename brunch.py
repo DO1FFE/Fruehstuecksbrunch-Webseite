@@ -220,9 +220,7 @@ def is_registration_open():
     friday_before_brunch = friday_before_brunch.replace(hour=0, minute=0, second=0, microsecond=0)
     brunch_end_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
 
-    # Die Registrierung ist geschlossen (Eingabefelder sind deaktiviert), 
-    # wenn die aktuelle Zeit innerhalb des festgelegten Zeitraums liegt
-    return not (now >= friday_before_brunch and now <= brunch_end_time)
+    return now < friday_before_brunch or now > brunch_end_time
 
 def validate_name_or_call(text):
     """
@@ -355,11 +353,11 @@ def index():
                     <table>
                         <tr>
                             <td><label for="name">Rufzeichen oder vollständiger Name:</label></td>
-                            <td><input type="text" name="name" class="border p-2" id="name" {{ 'disabled' if not registration_open }}></td>
+                            <td><input type="text" name="name" class="border p-2" id="name" {{ 'disabled' if not registration_open else '' }}></td>
                         </tr>
                         <tr>
                             <td><label for="email">E-Mail:</label></td>
-                            <td><input type="email" name="email" class="border p-2" id="email" {{ 'disabled' if not registration_open }}></td>
+                            <td><input type="email" name="email" class="border p-2" id="email" {{ 'disabled' if not registration_open else '' }}></td>
                         </tr>
                         <tr>
                             <td><label for="selected_item">Mitbringsel:</label></td>
@@ -367,7 +365,7 @@ def index():
                                 {% if no_items_available %}
                                     <input type="text" name="selected_item" class="border p-2 disabled-field" id="selected_item" value="Bitte selbst hinzufügen" disabled>
                                 {% else %}
-                                    <select name="selected_item" class="border p-2" id="selected_item" {{ 'disabled' if not registration_open }}>
+                                    <select name="selected_item" class="border p-2" id="selected_item" {{ 'disabled' if not registration_open else '' }}>
                                         {% for item in available_items %}
                                             <option value="{{ item }}">{{ item }}</option>
                                         {% endfor %}
@@ -381,15 +379,15 @@ def index():
                         </tr>
                         <tr>
                             <td><label for="custom_item">Oder neues Mitbringsel hinzufügen:</label></td>
-                            <td><input type="text" name="custom_item" class="border p-2" id="custom_item" {{ 'disabled' if not registration_open }}></td>
+                            <td><input type="text" name="custom_item" class="border p-2" id="custom_item" {{ 'disabled' if not registration_open else '' }}></td>
                         </tr>
                         <tr>
                             <td><label for="for_coffee_only">Nur zum Kaffeetrinken:<br>(Mitbringsel wird ignoriert)</label></td>
-                            <td><input type="checkbox" name="for_coffee_only" id="for_coffee_only" {{ 'disabled' if not registration_open }}></td>
+                            <td><input type="checkbox" name="for_coffee_only" id="for_coffee_only" {{ 'disabled' if not registration_open else '' }}></td>
                         </tr>
                         <tr>
                             <td></td>
-                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" {{ 'disabled' if not registration_open }}>Anmelden / Abmelden</button></td>
+                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" {{ 'disabled' if not registration_open else '' }}>Anmelden / Abmelden</button></td>
                         </tr>
                     </table>
                 </form>
