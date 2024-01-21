@@ -725,7 +725,7 @@ def save_participant_log():
     # Aktuelle Zeit in Berliner Zeitzone
     current_date = datetime.now(berlin_tz).strftime('%d.%m.%Y')
 
-    with open('teilnehmer.log', 'a') as log_file:
+    with open('teilnahmen.log', 'a') as log_file:
         for name, _, item, _ in brunch_info:
             log_file.write(f"{current_date} - {name} - {item}\n")
     logger.debug("Teilnehmerlog wurde gespeichert.")
