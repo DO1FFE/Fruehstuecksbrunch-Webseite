@@ -215,14 +215,17 @@ def is_registration_open():
     berlin_tz = pytz.timezone('Europe/Berlin')
     now = datetime.now(berlin_tz)
     next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_date(), '%d.%m.%Y'))
-    friday_before_brunch = next_brunch - timedelta(days=2)
 
-    # Stellen Sie sicher, dass friday_before_brunch auf Mitternacht und next_brunch auf 15 Uhr gesetzt sind
+    friday_before_brunch = next_brunch - timedelta(days=2)
     friday_before_brunch = friday_before_brunch.replace(hour=0, minute=0, second=0, microsecond=0)
     brunch_end_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
 
-    # Die Registrierung ist geschlossen zwischen Freitag 0 Uhr und Sonntag 15 Uhr
-    return not (friday_before_brunch <= now <= brunch_end_time)
+    registration_open = not (friday_before_brunch <= now <= brunch_end_time)
+
+    # Loggen der aktuellen Zeit, des nächsten Brunch-Datums und des Status
+    logger.debug(f"Aktuelle Zeit: {now}, Nächstes Brunch-Datum: {next_brunch_date()}, Registrierung offen: {registration_open}")
+
+    return registration_open
 
 def validate_name_or_call(text):
     """
