@@ -217,13 +217,11 @@ def is_registration_open():
     next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_date(), '%d.%m.%Y'))
     friday_before_brunch = next_brunch - timedelta(days=2)
 
-    # Stellen Sie sicher, dass friday_before_brunch auf Mitternacht gesetzt ist
+    # Stellen Sie sicher, dass friday_before_brunch und next_brunch auf Mitternacht bzw. 15 Uhr gesetzt sind
     friday_before_brunch = friday_before_brunch.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # Stellen Sie sicher, dass der nächste Brunch nach 15 Uhr am Sonntag wieder offen ist
     brunch_end_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
 
-    return now < friday_before_brunch or now > brunch_end_time
+    return now >= friday_before_brunch and now <= brunch_end_time
 
 def validate_name_or_call(text):
     """
