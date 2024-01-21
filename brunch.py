@@ -730,25 +730,30 @@ def save_participant_log():
             log_file.write(f"{current_date} - {name} - {item}\n")
     logger.debug("Teilnehmerlog wurde gespeichert.")
 
+def should_reset_database():
+    # Zeitzone für Europe/Berlin definieren
+    berlin_tz = pytz.timezone('Europe/Berlin')
+    now = datetime.now(berlin_tz)
+    next_brunch_str = next_brunch_date()
+    next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_str, '%d.%m.%Y'))
+    reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
+    return now >= reset_time
+
 def reset_database_at_event_time():
     while True:
-        now = datetime.now()
-        next_brunch = datetime.strptime(next_brunch_date(), '%d.%m.%Y')
-        next_reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
-
-        if now >= next_reset_time:
+        if should_reset_database():
             # Speichern der Teilnehmerinformationen in eine Log-Datei
             save_participant_log()
 
             # Zurücksetzen der Datenbank
             db_manager.reset_db()
             logger.debug("Datenbank wurde resettet.")
-            
+
             # Warte bis zum nächsten Tag, um erneut zu prüfen
             time.sleep(24 * 60 * 60)
         else:
-            # Warte bis zum Reset-Zeitpunkt
-            time.sleep((next_reset_time - now).total_seconds())
+            # Kurze Pause, um kontinuierliche Überprüfung zu vermeiden
+            time.sleep(60)
 
 reset_thread = threading.Thread(target=reset_database_at_event_time)
 reset_thread.start()
