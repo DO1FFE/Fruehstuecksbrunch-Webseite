@@ -735,10 +735,11 @@ def should_reset_database():
     now = datetime.now(berlin_tz)
     next_brunch_str = next_brunch_date()
     next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_str, '%d.%m.%Y'))
-    reset_time = next_brunch.replace(hour=15, minute=30, second=0, microsecond=0)
+    reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
 
-    logger.debug(f"Aktuelle Zeit: {now}, Nächstes Brunch: {next_brunch}, Reset-Zeit: {reset_time}")
-    return now >= reset_time
+    #logger.debug(f"Aktuelle Zeit: {now}, Nächstes Brunch: {next_brunch}, Reset-Zeit: {reset_time}")
+    #return now >= reset_time
+    return True
 
 def reset_database_at_event_time():
     while True:
