@@ -201,7 +201,8 @@ def next_brunch_date():
     first_sunday = first_day_of_month + timedelta(days=(6 - first_day_of_month.weekday()) % 7)
     third_sunday = first_sunday + timedelta(days=14)
 
-    if now > third_sunday:
+    # Überprüfen, ob das aktuelle Datum und die aktuelle Uhrzeit nach 15 Uhr am Tag des dritten Sonntags liegen
+    if now > third_sunday.replace(hour=15, minute=0, second=0, microsecond=0):
         month = month % 12 + 1
         year = year + (month == 1)
         first_day_of_next_month = berlin_tz.localize(datetime(year, month, 1))
@@ -209,6 +210,13 @@ def next_brunch_date():
         third_sunday = first_sunday_next_month + timedelta(days=14)
 
     return third_sunday.strftime('%d.%m.%Y')
+
+def is_registration_open():
+    # Gibt True zurück, wenn die Registrierung offen sein sollte, sonst False
+    now = datetime.now(pytz.timezone('Europe/Berlin'))
+    next_brunch = datetime.strptime(next_brunch_date(), '%d.%m.%Y')
+    friday_before_brunch = next_brunch - timedelta(days=2)
+    return now < friday_before_brunch.replace(hour=0, minute=0, second=0, microsecond=0)
 
 def validate_name_or_call(text):
     """
@@ -254,45 +262,36 @@ def index():
     next_brunch_date_str = next_brunch_date()
     error_message = ""
     available_items = get_available_items()
-    # Änderung: Kein graues Kästchen, wenn noch Mitbringsel auswählbar sind
-    no_items_available = len(available_items) == 0 and not any(item.lower() not in [entry[2].lower() for entry in db_manager.get_brunch_info()] for item in read_items_from_file())
+    no_items_available = len(available_items) == 0
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
     coffee_only_participants = db_manager.count_coffee_only_participants()
     logger.debug(f"Anfrage an die Startseite erhalten: Methode {request.method}")
 
+    registration_open = is_registration_open()
+
     if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        email = request.form.get('email', '').strip()
-        selected_item = request.form.get('selected_item', '').strip()
-        custom_item = request.form.get('custom_item', '').strip()
-        for_coffee_only = 'for_coffee_only' in request.form
+        if registration_open:
+            name = request.form.get('name', '').strip()
+            email = request.form.get('email', '').strip()
+            selected_item = request.form.get('selected_item', '').strip()
+            custom_item = request.form.get('custom_item', '').strip()
+            for_coffee_only = 'for_coffee_only' in request.form
 
-        if not validate_email(email):
-            error_message = "Bitte eine gültige E-Mail-Adresse eingeben."
-        elif not validate_name_or_call(name):
-            error_message = "Bitte ein gültiges Rufzeichen oder einen vollständigen Namen eingeben."
-        elif custom_item and not validate_bringalong(custom_item):
-            error_message = "Das Mitbringsel darf nur aus maximal zwei Worten ohne Sonderzeichen bestehen."
-        elif db_manager.participant_exists(name):
-            return redirect(url_for('confirm_delete', name=name))
-        else:
-            if for_coffee_only:
-                db_manager.add_brunch_entry(name, email, '', 1)
-                error_message = f"Teilnehmer '{name}' als Kaffeetrinker hinzugefügt."
+            if not name or not validate_name_or_call(name):
+                error_message = "Bitte einen gültigen Namen eingeben."
+            elif not email or not validate_email(email):
+                error_message = "Bitte eine gültige E-Mail-Adresse eingeben."
+            elif custom_item and not validate_bringalong(custom_item):
+                error_message = "Das Mitbringsel ist nicht gültig."
             else:
-                item_lower = (custom_item if custom_item else selected_item).lower()
-                if item_lower in [item.lower() for _, _, item, _ in db_manager.get_brunch_info()]:
-                    error_message = f"Mitbringsel '{custom_item if custom_item else selected_item}' ist bereits vergeben."
+                item = custom_item if custom_item else selected_item
+                if item and item.lower() in [i.lower() for i in taken_items]:
+                    error_message = "Dieses Mitbringsel wurde bereits gewählt."
                 else:
-                    item_to_add = custom_item.lower().capitalize() if custom_item else selected_item
-                    if custom_item and item_lower not in [item.lower() for item in read_items_from_file()]:
-                        add_item_to_file(custom_item)
-                    db_manager.add_brunch_entry(name, email, item_to_add, 0)
-                    error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item_to_add}' hinzugefügt."
-
-            total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
-            coffee_only_participants = db_manager.count_coffee_only_participants()
-            available_items = get_available_items()  # Update available items list
+                    db_manager.add_brunch_entry(name, email, item, int(for_coffee_only))
+                    error_message = "Anmeldung erfolgreich!"
+        else:
+            error_message = "Die Anmeldung ist derzeit nicht möglich."
 
     taken_items_info = db_manager.get_brunch_info()
     taken_items = [item for _, _, item, _ in taken_items_info if item]
@@ -303,89 +302,51 @@ def index():
         <html lang="de">
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>L11 Frühstücksbrunch Anmeldung</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
             <style>
-                .small-text {
-                    font-size: 0.7em; /* Kleine Schriftgröße */
-                    font-weight: normal; /* Normales Schriftgewicht */
-                }
-                body {
-                    background-color: #2aa6da;
-                    color: white; /* Setzt die Textfarbe auf Weiß */
-                }
-                input,
-                select {
-                    color: black; /* Setzt die Textfarbe in Eingabefeldern auf Schwarz */
-                }
-                input[type="checkbox"] {
-                    transform: scale(2); /* Vergrößert die Checkbox */
-                    margin: 5px; /* Fügt etwas Abstand um die Checkbox hinzu */
-                }
-                .disabled-field {
-                    background-color: #f0f0f0; /* Ausgegraute Hintergrundfarbe */
-                }
+                body { font-family: Arial, sans-serif; }
+                .error { color: red; }
             </style>
         </head>
         <body>
-            <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">L11 Frühstücksbrunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10Uhr</h1>
-                <h2 class="text-xl font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
-                <p class="text-red-500">{{ error_message }}</p>
-                <form method="post" class="mb-4">
-                    <table>
-                        <tr>
-                            <td><label for="name">Rufzeichen oder vollständiger Name:</label></td>
-                            <td><input type="text" name="name" class="border p-2" id="name"></td>
-                        </tr>
-                        <tr>
-                            <td><label for="email">E-Mail:</label></td>
-                            <td><input type="email" name="email" class="border p-2" id="email"></td>
-                        </tr>
-                        <tr>
-                            <td><label for="selected_item">Mitbringsel:</label></td>
-                            <td>
-                                {% if no_items_available %}
-                                    <input type="text" name="selected_item" class="border p-2 disabled-field" id="selected_item" value="Bitte selbst hinzufügen" disabled>
-                                {% else %}
-                                    <select name="selected_item" class="border p-2" id="selected_item">
-                                    {% for item in available_items %}
-                                        <option value="{{ item }}">{{ item }}</option>
-                                    {% endfor %}
-                                    </select>
-                                {% endif %}
-                            </td>
-                            <td class="small-text">
-                                <div><b>Von anderen bereits ausgewählte Mitbringsel:</b></div>
-                                <div>{{ taken_items_str }}</div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><label for="custom_item">Oder neues Mitbringsel hinzufügen:</label></td>
-                            <td><input type="text" name="custom_item" class="border p-2" id="custom_item"></td>
-                        </tr>
-                        <tr>
-                            <td><label for="for_coffee_only">Nur zum Kaffeetrinken:<br>(Mitbringsel wird ignoriert)</label></td>
-                            <td><input type="checkbox" name="for_coffee_only" id="for_coffee_only"></td>
-                        </tr>
-                        <tr>
-                            <td>&nbsp;</td>
-                            <td></td>
-                        </tr>
-                        <tr>
-                            <td></td>
-                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Anmelden / Abmelden</button></td>
-                        </tr>
-                    </table>
+            <h1>L11 Frühstücksbrunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10 Uhr</h1>
+            <p>Anmeldungen: {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</p>
+            {% if error_message %}
+                <p class="error">{{ error_message }}</p>
+            {% endif %}
+            {% if registration_open %}
+                <form method="POST">
+                    <label for="name">Name:</label><br>
+                    <input type="text" id="name" name="name"><br><br>
+
+                    <label for="email">E-Mail:</label><br>
+                    <input type="email" id="email" name="email"><br><br>
+
+                    <label for="selected_item">Mitbringsel auswählen:</label><br>
+                    <select id="selected_item" name="selected_item">
+                        {% for item in available_items %}
+                            <option value="{{ item }}">{{ item }}</option>
+                        {% endfor %}
+                    </select><br><br>
+
+                    <label for="custom_item">Oder eigenes Mitbringsel hinzufügen:</label><br>
+                    <input type="text" id="custom_item" name="custom_item"><br><br>
+
+                    <input type="checkbox" id="for_coffee_only" name="for_coffee_only">
+                    <label for="for_coffee_only">Nur zum Kaffeetrinken</label><br><br>
+
+                    <button type="submit">Anmelden</button>
                 </form>
-            </div>
-            <footer class="bg-white text-center text-gray-700 p-4">
-                © 2023 - {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
+            {% else %}
+                <p>Die Anmeldung ist derzeit geschlossen.</p>
+            {% endif %}
+            <p>Bereits ausgewählte Mitbringsel: {{ taken_items_str }}</p>
+            <footer>
+                <p>© {{ current_year }} Erik Schauer, DO1FFE - do1ffe@darc.de</p>
             </footer>
         </body>
         </html>
-    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year, no_items_available=no_items_available)
+    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year, registration_open=registration_open)
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
