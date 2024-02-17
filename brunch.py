@@ -460,6 +460,50 @@ def delete_entry(name):
     )
     return redirect(url_for('admin_page'))
 
+# Import-Anweisungen und Klassen wie zuvor definiert bleiben unverändert
+
+# Hinzufügen einer neuen Route für das Admin-Formular zum Hinzufügen von Teilnehmern
+@brunch.route('/admin/add', methods=['GET', 'POST'])
+@requires_auth
+def admin_add_participant():
+    if request.method == 'POST':
+        # Extrahieren der Formulardaten
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        item = request.form.get('item', '').strip()
+        for_coffee_only = 'for_coffee_only' in request.form
+
+        # Validierung der Eingaben (optional, abhängig von Ihren Anforderungen)
+
+        # Teilnehmer hinzufügen, unabhängig vom aktuellen Registrierungsstatus
+        db_manager.add_brunch_entry(name, email, item, int(for_coffee_only))
+        logger.debug(f"Admin hat Teilnehmer hinzugefügt: {name}, {email}, {item}, Kaffeetrinker: {for_coffee_only}")
+
+        # Rückleitung zur Admin-Seite
+        return redirect(url_for('admin_page'))
+
+    # Formular für das Hinzufügen von Teilnehmern anzeigen
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <title>Teilnehmer hinzufügen - Admin</title>
+        <!-- Stil- und Skript-Tags wie zuvor -->
+    </head>
+    <body>
+        <!-- Admin-Formular zum Hinzufügen von Teilnehmern -->
+        <form method="post">
+            Name: <input type="text" name="name" required><br>
+            E-Mail: <input type="email" name="email" required><br>
+            Mitbringsel: <input type="text" name="item"><br>
+            Nur zum Kaffeetrinken: <input type="checkbox" name="for_coffee_only"><br>
+            <button type="submit">Teilnehmer hinzufügen</button>
+        </form>
+    </body>
+    </html>
+    """)
+
 @brunch.route('/admin')
 @requires_auth
 def admin_page():
