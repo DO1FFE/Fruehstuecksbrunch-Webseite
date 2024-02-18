@@ -2,7 +2,7 @@
 # Autor: Erik Schauer, DO1FFE, do1ffe@darc.de
 # Erstelldatum: 2023-12-16
 
-from flask import Flask, request, render_template_string, Response, redirect, url_for, send_from_directory, send_file
+from flask import Flask, request, render_template_string, Response, redirect, url_for, send_from_directory, send_file, jsonify
 from functools import wraps
 from datetime import datetime, timedelta
 import logging
