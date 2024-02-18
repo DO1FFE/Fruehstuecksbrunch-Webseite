@@ -263,6 +263,25 @@ def get_available_items():
     taken_items = [entry[2] for entry in db_manager.get_brunch_info() if entry[2]]
     return [item for item in all_items if item not in taken_items]
 
+def should_reset_database():
+    berlin_tz = pytz.timezone('Europe/Berlin')
+    now = datetime.now(berlin_tz)
+    next_brunch_str = next_brunch_date()
+    next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_str, '%d.%m.%Y'))
+    reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
+
+    return now > reset_time
+
+def reset_database_if_needed():
+    if should_reset_database():
+        db_manager.reset_db()
+        
+def schedule_database_reset():
+    while True:
+        reset_database_if_needed()
+        # Warte 1 Stunde bevor die nächste Überprüfung durchgeführt wird, um Ressourcen zu sparen.
+        time.sleep(3600)
+
 brunch = Flask(__name__)
 
 @brunch.route('/', methods=['GET', 'POST'])
@@ -803,7 +822,9 @@ def reset_database_at_event_time():
             # Kurze Pause, um kontinuierliche Überprüfung zu vermeiden
             time.sleep(60)
 
-reset_thread = threading.Thread(target=reset_database_at_event_time)
+# Starten des Threads zur Überwachung und zum Zurücksetzen der Datenbank
+reset_thread = threading.Thread(target=schedule_database_reset)
+reset_thread.daemon = True  # Markieren Sie den Thread als Daemon, damit er automatisch beendet wird, wenn das Hauptprogramm beendet wird.
 reset_thread.start()
 
 if __name__ == '__main__':
