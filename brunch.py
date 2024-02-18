@@ -822,6 +822,15 @@ def reset_database_at_event_time():
             # Kurze Pause, um kontinuierliche Überprüfung zu vermeiden
             time.sleep(60)
 
+@brunch.route('/reset_db', methods=['POST'])
+@requires_auth
+def reset_db():
+    try:
+        db_manager.reset_db()
+        return jsonify({"success": "Datenbank erfolgreich zurückgesetzt"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # Starten des Threads zur Überwachung und zum Zurücksetzen der Datenbank
 reset_thread = threading.Thread(target=schedule_database_reset)
 reset_thread.daemon = True  # Markieren Sie den Thread als Daemon, damit er automatisch beendet wird, wenn das Hauptprogramm beendet wird.
