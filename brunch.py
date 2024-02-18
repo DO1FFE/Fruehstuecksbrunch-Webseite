@@ -274,6 +274,7 @@ def should_reset_database():
 
 def reset_database_if_needed():
     if should_reset_database():
+        save_participant_log()
         db_manager.reset_db()
         
 def schedule_database_reset():
