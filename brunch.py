@@ -797,16 +797,6 @@ def save_participant_log():
             log_file.write(f"{current_date}, {name}, {item}\n")
     logger.debug("Teilnehmerlog wurde gespeichert.")
 
-def should_reset_database():
-    berlin_tz = pytz.timezone('Europe/Berlin')
-    now = datetime.now(berlin_tz)
-    next_brunch_str = next_brunch_date()
-    next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_str, '%d.%m.%Y'))
-    reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
-
-    #logger.debug(f"Aktuelle Zeit: {now}, Nächstes Brunch: {next_brunch}, Reset-Zeit: {reset_time}")
-    return now >= reset_time
-
 def reset_database_at_event_time():
     while True:
         if should_reset_database():
