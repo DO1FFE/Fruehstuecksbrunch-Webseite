@@ -83,7 +83,7 @@ def check_auth(username, password):
 # Aufforderung zur Authentifizierung
 def authenticate():
     return Response(
-    'Zugriff verweigert. Bitte Authentifizieren.', 401,
+    'Zugriff verweigert. Bitte authentifizieren.', 401,
     {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
 # Dekorator für Authentifizierung
