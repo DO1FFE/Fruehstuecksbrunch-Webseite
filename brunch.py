@@ -263,12 +263,23 @@ def get_available_items():
     taken_items = [entry[2] for entry in db_manager.get_brunch_info() if entry[2]]
     return [item for item in all_items if item not in taken_items]
 
+def current_brunch_date():
+    berlin_tz = pytz.timezone('Europe/Berlin')
+    now = datetime.now(berlin_tz)
+    month = now.month
+    year = now.year
+    first_day_of_month = berlin_tz.localize(datetime(year, month, 1))
+    first_sunday = first_day_of_month + timedelta(days=(6 - first_day_of_month.weekday()) % 7)
+    third_sunday = first_sunday + timedelta(days=14)
+
+    return third_sunday.strftime('%d.%m.%Y')
+
 def should_reset_database():
     berlin_tz = pytz.timezone('Europe/Berlin')
     now = datetime.now(berlin_tz)
-    next_brunch_str = next_brunch_date()
-    next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_str, '%d.%m.%Y'))
-    reset_time = next_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
+    current_brunch_str = current_brunch_date()
+    current_brunch = berlin_tz.localize(datetime.strptime(current_brunch_str, '%d.%m.%Y'))
+    reset_time = current_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
 
     return now > reset_time
 
