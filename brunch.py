@@ -243,7 +243,7 @@ def validate_bringalong(text):
 
 # Funktion zur Überprüfung der E-Mail-Adresse
 def validate_email(email):
-    return re.match(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$', email) is not None
+    return re.match(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$', email) is not None
 
 def read_items_from_file():
     try:
