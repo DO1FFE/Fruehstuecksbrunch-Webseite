@@ -23,10 +23,12 @@ Das Projekt *FrühstücksBrunchManager* ist eine Flask-basierte Webanwendung, di
    ```
    pip install -r requirements.txt
    ```
-3. Erstellen Sie eine `.pwd`-Datei im Hauptverzeichnis mit den Admin-Anmeldedaten im Format:
+3. Erstellen Sie eine `.pwd`-Datei im Hauptverzeichnis mit den Admin-Anmeldedaten sowie den DAPNET-Zugangsdaten im Format (alle vier Einträge werden benötigt):
    ```
    ADMIN_1:ADMIN_PASSWORD_1
    ADMIN_2:ADMIN_PASSWORD_2
+   dapnet_username:DAPNET_USER
+   dapnet_password:DAPNET_PASS
    ```
 4. Starte die Anwendung:
    ```
