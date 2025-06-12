@@ -792,7 +792,7 @@ def download_pdf():
     doc.build(elements)
 
     buffer.seek(0)
-    return send_file(buffer, as_attachment=True, attachment_filename='brunch_liste.pdf', mimetype='application/pdf')
+    return send_file(buffer, as_attachment=True, download_name='brunch_liste.pdf', mimetype='application/pdf')
 
 def save_participant_log():
     brunch_info = db_manager.get_brunch_info()
