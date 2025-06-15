@@ -201,6 +201,10 @@ def next_brunch_date():
     first_sunday = first_day_of_month + timedelta(days=(6 - first_day_of_month.weekday()) % 7)
     third_sunday = first_sunday + timedelta(days=14)
 
+    # Sonderfall: Im Juli 2025 findet das Treffen ausnahmsweise am 27.07. statt
+    if year == 2025 and month == 7:
+        third_sunday = berlin_tz.localize(datetime(2025, 7, 27))
+
     # Überprüfen, ob das aktuelle Datum und die aktuelle Uhrzeit nach 15 Uhr am Tag des dritten Sonntags liegen
     if now > third_sunday.replace(hour=15, minute=0, second=0, microsecond=0):
         month = month % 12 + 1
