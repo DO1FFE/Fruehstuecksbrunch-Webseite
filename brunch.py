@@ -201,10 +201,6 @@ def next_brunch_date():
     first_sunday = first_day_of_month + timedelta(days=(6 - first_day_of_month.weekday()) % 7)
     third_sunday = first_sunday + timedelta(days=14)
 
-    # Sonderfall: Im Juli 2025 findet das Treffen ausnahmsweise am 27.07. statt
-    if year == 2025 and month == 7:
-        third_sunday = berlin_tz.localize(datetime(2025, 7, 27))
-
     # Überprüfen, ob das aktuelle Datum und die aktuelle Uhrzeit nach 15 Uhr am Tag des dritten Sonntags liegen
     if now > third_sunday.replace(hour=15, minute=0, second=0, microsecond=0):
         month = month % 12 + 1
@@ -212,6 +208,10 @@ def next_brunch_date():
         first_day_of_next_month = berlin_tz.localize(datetime(year, month, 1))
         first_sunday_next_month = first_day_of_next_month + timedelta(days=(6 - first_day_of_next_month.weekday()) % 7)
         third_sunday = first_sunday_next_month + timedelta(days=14)
+
+    # Sonderfall: Im Juli 2025 findet das Treffen ausnahmsweise am 27.07. statt
+    if year == 2025 and month == 7:
+        third_sunday = berlin_tz.localize(datetime(2025, 7, 27))
 
     return third_sunday.strftime('%d.%m.%Y')
 
@@ -387,6 +387,7 @@ def index():
         <body>
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">L11 Frühstücksbrunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10 Uhr</h1>
+                <h2 class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir vom normalen Rhythmus ab.</h2>
                 <h2 class="text-xl font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
                 <h3 class="text-sm text-center my-6 text-white italic">Hinweis: Die Anmeldung ist ab Freitag 0 Uhr vor dem Brunch geschlossen und wird am Brunch-Sonntag um 15 Uhr wieder geöffnet.</h3>
                 <p class="text-red-500">{{ error_message }}</p>
