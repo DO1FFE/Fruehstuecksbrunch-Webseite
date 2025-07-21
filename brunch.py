@@ -19,6 +19,11 @@ from reportlab.lib import colors
 from io import BytesIO
 import requests
 
+# Ausnahmen für Brunchtermine in der Form {(Jahr, Monat): (Tag)}
+BRUNCH_EXCEPTIONS = {
+    (2025, 7): 27  # Im Juli 2025 findet das Treffen am 27.07. statt
+}
+
 class DAPNET:
     """
     Diese Klasse implementiert einen Client für die DAPNET API.
@@ -187,33 +192,37 @@ class DatabaseManager:
         
 db_manager = DatabaseManager()
 
-def next_brunch_date():
-    # Zeitzone für Europe/Berlin definieren
+def event_date_for_month(year, month):
+    """Bestimmt das Brunch-Datum fuer einen gegebenen Monat."""
     berlin_tz = pytz.timezone('Europe/Berlin')
 
-    # Aktuelle Zeit in Berliner Zeitzone
+    # Sondertermine pruefen
+    if (year, month) in BRUNCH_EXCEPTIONS:
+        day = BRUNCH_EXCEPTIONS[(year, month)]
+        return berlin_tz.localize(datetime(year, month, day))
+
+    first_day = berlin_tz.localize(datetime(year, month, 1))
+    first_sunday = first_day + timedelta(days=(6 - first_day.weekday()) % 7)
+    third_sunday = first_sunday + timedelta(days=14)
+
+    return third_sunday
+
+def next_brunch_date():
+    """Liefert das Datum des naechsten Brunch-Termins als String."""
+    berlin_tz = pytz.timezone('Europe/Berlin')
+
     now = datetime.now(berlin_tz)
     month = now.month
     year = now.year
 
-    # Erster Tag des Monats in Berliner Zeitzone
-    first_day_of_month = berlin_tz.localize(datetime(year, month, 1))
-    first_sunday = first_day_of_month + timedelta(days=(6 - first_day_of_month.weekday()) % 7)
-    third_sunday = first_sunday + timedelta(days=14)
+    event_day = event_date_for_month(year, month)
 
-    # Überprüfen, ob das aktuelle Datum und die aktuelle Uhrzeit nach 15 Uhr am Tag des dritten Sonntags liegen
-    if now > third_sunday.replace(hour=15, minute=0, second=0, microsecond=0):
+    if now > event_day.replace(hour=15, minute=0, second=0, microsecond=0):
         month = month % 12 + 1
         year = year + (month == 1)
-        first_day_of_next_month = berlin_tz.localize(datetime(year, month, 1))
-        first_sunday_next_month = first_day_of_next_month + timedelta(days=(6 - first_day_of_next_month.weekday()) % 7)
-        third_sunday = first_sunday_next_month + timedelta(days=14)
+        event_day = event_date_for_month(year, month)
 
-    # Sonderfall: Im Juli 2025 findet das Treffen ausnahmsweise am 27.07. statt
-    if year == 2025 and month == 7:
-        third_sunday = berlin_tz.localize(datetime(2025, 7, 27))
-
-    return third_sunday.strftime('%d.%m.%Y')
+    return event_day.strftime('%d.%m.%Y')
 
 def is_registration_open():
     berlin_tz = pytz.timezone('Europe/Berlin')
@@ -272,11 +281,10 @@ def current_brunch_date():
     now = datetime.now(berlin_tz)
     month = now.month
     year = now.year
-    first_day_of_month = berlin_tz.localize(datetime(year, month, 1))
-    first_sunday = first_day_of_month + timedelta(days=(6 - first_day_of_month.weekday()) % 7)
-    third_sunday = first_sunday + timedelta(days=14)
 
-    return third_sunday.strftime('%d.%m.%Y')
+    event_day = event_date_for_month(year, month)
+
+    return event_day.strftime('%d.%m.%Y')
 
 def should_reset_database():
     berlin_tz = pytz.timezone('Europe/Berlin')
