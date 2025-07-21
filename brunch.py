@@ -314,12 +314,18 @@ def get_available_items():
     return [item for item in all_items if item not in taken_items]
 
 def current_brunch_date():
+    """Liefert das Datum des aktuell relevanten Brunch-Termins."""
+    override = db_manager.get_config('next_date_override')
+    if override:
+        try:
+            datetime.strptime(override, '%d.%m.%Y')
+            return override
+        except ValueError:
+            logger.error("Ungültiges Format für abweichendes Datum: %s", override)
+
     berlin_tz = pytz.timezone('Europe/Berlin')
     now = datetime.now(berlin_tz)
-    month = now.month
-    year = now.year
-
-    event_day = event_date_for_month(year, month)
+    event_day = event_date_for_month(now.year, now.month)
 
     return event_day.strftime('%d.%m.%Y')
 
