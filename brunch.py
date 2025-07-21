@@ -19,10 +19,6 @@ from reportlab.lib import colors
 from io import BytesIO
 import requests
 
-# Ausnahmen für Brunchtermine in der Form {(Jahr, Monat): (Tag)}
-BRUNCH_EXCEPTIONS = {
-    (2025, 7): 27  # Im Juli 2025 findet das Treffen am 27.07. statt
-}
 
 class DAPNET:
     """
@@ -213,10 +209,6 @@ def event_date_for_month(year, month):
     """Bestimmt das Brunch-Datum fuer einen gegebenen Monat."""
     berlin_tz = pytz.timezone('Europe/Berlin')
 
-    # Sondertermine pruefen
-    if (year, month) in BRUNCH_EXCEPTIONS:
-        day = BRUNCH_EXCEPTIONS[(year, month)]
-        return berlin_tz.localize(datetime(year, month, day))
 
     first_day = berlin_tz.localize(datetime(year, month, 1))
     first_sunday = first_day + timedelta(days=(6 - first_day.weekday()) % 7)
@@ -236,13 +228,7 @@ def should_show_exception_notice():
     except ValueError:
         pass
 
-    next_date_str = next_brunch_date()
-    next_date = berlin_tz.localize(datetime.strptime(next_date_str, '%d.%m.%Y'))
-
-    return (
-        (next_date.year, next_date.month) in BRUNCH_EXCEPTIONS and
-        BRUNCH_EXCEPTIONS[(next_date.year, next_date.month)] == next_date.day
-    )
+    return False
 
 def next_brunch_date():
     """Liefert das Datum des naechsten Brunch-Termins als String."""
@@ -631,6 +617,7 @@ def admin_page():
     mailto_link = f"mailto:do1emc@darc.de?bcc={','.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
     override_date = db_manager.get_config('next_date_override') or ''
     event_cancelled = is_event_cancelled()
+    exception_notice = should_show_exception_notice()
     next_date = next_brunch_date()
 
     return render_template_string("""
@@ -691,6 +678,9 @@ def admin_page():
                 {% if event_cancelled %}
                 <p class="text-red-500 text-center">Der nächste Termin fällt aus.</p>
                 {% endif %}
+                {% if exception_notice %}
+                <p class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir vom normalen Rhythmus ab.</p>
+                {% endif %}
                 <form method="post" action="{{ url_for('update_settings') }}" class="my-4">
                     <label for="override_date">Abweichendes Datum (TT.MM.JJJJ):</label>
                     <input type="text" id="override_date" name="override_date" value="{{ override_date }}" class="text-black"><br>
@@ -705,7 +695,8 @@ def admin_page():
         </body>
         </html>
     """, brunch_info=brunch_info, current_year=datetime.now().year, mailto_link=mailto_link,
-           override_date=override_date, event_cancelled=event_cancelled, next_date=next_date)
+           override_date=override_date, event_cancelled=event_cancelled, exception_notice=exception_notice,
+           next_date=next_date)
 
 # Route zum Anzeigen und Bearbeiten der Mitbringsel-Liste
 @brunch.route('/admin/mitbringsel', methods=['GET', 'POST'])
