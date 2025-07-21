@@ -41,8 +41,8 @@ Das Projekt *FrühstücksBrunchManager* ist eine Flask-basierte Webanwendung, di
 ## Abweichende Termine
 Sondertermine müssen nicht im Code gepflegt werden. Im Admin-Bereich gibt es
 ein Feld **Abweichendes Datum**, über das sich das Datum des nächsten Brunches
-ändern lässt. Trage hier ein Datum im Format `TT.MM.JJJJ` ein, um einen von der
-Regel abweichenden Termin festzulegen. Setze optional das Kontrollkästchen
+nun über einen kleinen Kalender auswählen lässt. Zur Auswahl stehen ausschließlich
+Sonntage. Setze optional das Kontrollkästchen
 **Nächsten Termin ausfallen lassen**, um das Treffen komplett abzusagen. Bei
 abweichenden oder abgesagten Terminen erscheint automatisch ein Hinweistext auf
 der Startseite.

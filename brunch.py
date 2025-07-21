@@ -552,10 +552,17 @@ def delete_entry(name):
 def update_settings():
     override_date = request.form.get('override_date', '').strip()
     cancel_next = 'cancel_next' in request.form
+
     if override_date:
-        db_manager.set_config('next_date_override', override_date)
+        try:
+            override_dt = datetime.strptime(override_date, '%Y-%m-%d')
+            formatted = override_dt.strftime('%d.%m.%Y')
+            db_manager.set_config('next_date_override', formatted)
+        except ValueError:
+            db_manager.set_config('next_date_override', '')
     else:
         db_manager.set_config('next_date_override', '')
+
     db_manager.set_config('next_date_cancelled', '1' if cancel_next else '0')
     return redirect(url_for('admin_page'))
 
@@ -616,6 +623,13 @@ def admin_page():
     email_addresses = [entry[1] for entry in brunch_info if entry[1]]
     mailto_link = f"mailto:do1emc@darc.de?bcc={','.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
     override_date = db_manager.get_config('next_date_override') or ''
+    override_date_iso = ''
+    if override_date:
+        try:
+            override_dt = datetime.strptime(override_date, '%d.%m.%Y')
+            override_date_iso = override_dt.strftime('%Y-%m-%d')
+        except ValueError:
+            override_date_iso = ''
     event_cancelled = is_event_cancelled()
     exception_notice = should_show_exception_notice()
     next_date = next_brunch_date()
@@ -682,8 +696,8 @@ def admin_page():
                 <p class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir einmalig vom normalen Rhythmus ab.</p>
                 {% endif %}
                 <form method="post" action="{{ url_for('update_settings') }}" class="my-4">
-                    <label for="override_date">Abweichendes Datum (TT.MM.JJJJ):</label>
-                    <input type="text" id="override_date" name="override_date" value="{{ override_date }}" class="text-black"><br>
+                    <label for="override_date">Abweichendes Datum:</label>
+                    <input type="date" id="override_date" name="override_date" value="{{ override_date_iso }}" class="text-black" min="2025-07-06" step="7"><br>
                     <input type="checkbox" id="cancel_next" name="cancel_next" {% if event_cancelled %}checked{% endif %}>
                     <label for="cancel_next">Nächsten Termin ausfallen lassen</label><br>
                     <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Speichern</button>
@@ -695,7 +709,8 @@ def admin_page():
         </body>
         </html>
     """, brunch_info=brunch_info, current_year=datetime.now().year, mailto_link=mailto_link,
-           override_date=override_date, event_cancelled=event_cancelled, exception_notice=exception_notice,
+           override_date=override_date, override_date_iso=override_date_iso,
+           event_cancelled=event_cancelled, exception_notice=exception_notice,
            next_date=next_date)
 
 # Route zum Anzeigen und Bearbeiten der Mitbringsel-Liste
