@@ -437,7 +437,7 @@ def index():
                 <h2 class="text-red-500 text-center">Der nächste Termin fällt aus.</h2>
                 {% endif %}
                 {% if show_exception_notice %}
-                <h2 class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir vom normalen Rhythmus ab.</h2>
+                <h2 class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir einmalig vom normalen Rhythmus ab.</h2>
                 {% endif %}
                 <h2 class="text-xl font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
                 <h3 class="text-sm text-center my-6 text-white italic">Hinweis: Die Anmeldung ist ab Freitag 0 Uhr vor dem Brunch geschlossen und wird am Brunch-Sonntag um 15 Uhr wieder geöffnet.</h3>
@@ -679,7 +679,7 @@ def admin_page():
                 <p class="text-red-500 text-center">Der nächste Termin fällt aus.</p>
                 {% endif %}
                 {% if exception_notice %}
-                <p class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir vom normalen Rhythmus ab.</p>
+                <p class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir einmalig vom normalen Rhythmus ab.</p>
                 {% endif %}
                 <form method="post" action="{{ url_for('update_settings') }}" class="my-4">
                     <label for="override_date">Abweichendes Datum (TT.MM.JJJJ):</label>
