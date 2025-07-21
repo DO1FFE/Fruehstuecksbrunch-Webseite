@@ -572,43 +572,119 @@ def update_settings():
 @brunch.route('/admin/add', methods=['GET', 'POST'])
 @requires_auth
 def admin_add_participant():
+    """Teilnehmer über die Admin-Oberfläche hinzufügen."""
+    error_message = ""
+    # Verfügbare und bereits genutzte Mitbringsel bestimmen
+    available_items = get_available_items()
+    taken_items_info = db_manager.get_brunch_info()
+    taken_items = [item for _, _, item, _ in taken_items_info if item]
+    taken_items_str = ', '.join(taken_items)
+    no_items_available = len(available_items) == 0 and not any(
+        item.lower() not in [entry[2].lower() for entry in taken_items_info]
+        for item in read_items_from_file()
+    )
+
     if request.method == 'POST':
-        # Extrahieren der Formulardaten
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
-        item = request.form.get('item', '').strip()
+        selected_item = request.form.get('selected_item', '').strip()
+        custom_item = request.form.get('custom_item', '').strip()
         for_coffee_only = 'for_coffee_only' in request.form
 
-        # Validierung der Eingaben (optional, abhängig von Ihren Anforderungen)
+        if for_coffee_only:
+            db_manager.add_brunch_entry(name, email, '', 1)
+        else:
+            item_lower = (custom_item if custom_item else selected_item).lower()
+            if item_lower in [i.lower() for _, _, i, _ in taken_items_info]:
+                error_message = (
+                    f"Mitbringsel '{custom_item if custom_item else selected_item}' ist bereits vergeben."
+                )
+            else:
+                item_to_add = custom_item.lower().capitalize() if custom_item else selected_item
+                if custom_item and item_lower not in [i.lower() for i in read_items_from_file()]:
+                    add_item_to_file(custom_item)
+                db_manager.add_brunch_entry(name, email, item_to_add, 0)
+                return redirect(url_for('admin_page'))
 
-        # Teilnehmer hinzufügen, unabhängig vom aktuellen Registrierungsstatus
-        db_manager.add_brunch_entry(name, email, item, int(for_coffee_only))
-        logger.debug(f"Admin hat Teilnehmer hinzugefügt: {name}, {email}, {item}, Kaffeetrinker: {for_coffee_only}")
+        # Bei Fehler oder erneutem Anzeigen die Listen aktualisieren
+        available_items = get_available_items()
+        taken_items_info = db_manager.get_brunch_info()
+        taken_items = [item for _, _, item, _ in taken_items_info if item]
+        taken_items_str = ', '.join(taken_items)
 
-        # Rückleitung zur Admin-Seite
-        return redirect(url_for('admin_page'))
-
-    # Formular für das Hinzufügen von Teilnehmern anzeigen
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <title>Teilnehmer hinzufügen - Admin</title>
-        <!-- Stil- und Skript-Tags wie zuvor -->
-    </head>
-    <body>
-        <!-- Admin-Formular zum Hinzufügen von Teilnehmern -->
-        <form method="post">
-            Name: <input type="text" name="name" required><br>
-            E-Mail: <input type="email" name="email" required><br>
-            Mitbringsel: <input type="text" name="item"><br>
-            Nur zum Kaffeetrinken: <input type="checkbox" name="for_coffee_only"><br>
-            <button type="submit">Teilnehmer hinzufügen</button>
-        </form>
-    </body>
-    </html>
-    """)
+    return render_template_string(
+        """
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <title>Teilnehmer hinzufügen - Admin</title>
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            <style>
+                body {
+                    background-color: #2aa6da;
+                    color: white;
+                }
+                input, select {
+                    color: black;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container mx-auto px-4">
+                <h1 class="text-3xl font-bold text-center my-6">Teilnehmer hinzufügen</h1>
+                <p class="text-red-500">{{ error_message }}</p>
+                <form method="post">
+                    <table>
+                        <tr>
+                            <td>Name:</td>
+                            <td><input type="text" name="name" required class="border p-2"></td>
+                        </tr>
+                        <tr>
+                            <td>E-Mail:</td>
+                            <td><input type="email" name="email" required class="border p-2"></td>
+                        </tr>
+                        <tr>
+                            <td>Mitbringsel:</td>
+                            <td>
+                                {% if no_items_available %}
+                                    <input type="text" name="selected_item" class="border p-2" value="Bitte selbst hinzufügen" disabled>
+                                {% else %}
+                                    <select name="selected_item" class="border p-2">
+                                        {% for item in available_items %}
+                                            <option value="{{ item }}">{{ item }}</option>
+                                        {% endfor %}
+                                    </select>
+                                {% endif %}
+                            </td>
+                            <td class="text-sm">
+                                <div><b>Von anderen bereits ausgewählte Mitbringsel:</b></div>
+                                <div>{{ taken_items_str }}</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Oder neues Mitbringsel hinzufügen:</td>
+                            <td><input type="text" name="custom_item" class="border p-2"></td>
+                        </tr>
+                        <tr>
+                            <td>Nur zum Kaffeetrinken:</td>
+                            <td><input type="checkbox" name="for_coffee_only"></td>
+                        </tr>
+                        <tr>
+                            <td></td>
+                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Teilnehmer hinzufügen</button></td>
+                        </tr>
+                    </table>
+                </form>
+            </div>
+        </body>
+        </html>
+        """,
+        available_items=available_items,
+        taken_items_str=taken_items_str,
+        no_items_available=no_items_available,
+        error_message=error_message,
+    )
 
 @brunch.route('/admin')
 @requires_auth
