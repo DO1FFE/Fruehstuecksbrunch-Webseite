@@ -207,6 +207,17 @@ def event_date_for_month(year, month):
 
     return third_sunday
 
+def should_show_exception_notice():
+    """Bestimmt, ob ein Hinweis auf einen Sondertermin angezeigt werden soll."""
+    berlin_tz = pytz.timezone('Europe/Berlin')
+    next_date_str = next_brunch_date()
+    next_date = berlin_tz.localize(datetime.strptime(next_date_str, '%d.%m.%Y'))
+
+    return (
+        (next_date.year, next_date.month) in BRUNCH_EXCEPTIONS and
+        BRUNCH_EXCEPTIONS[(next_date.year, next_date.month)] == next_date.day
+    )
+
 def next_brunch_date():
     """Liefert das Datum des naechsten Brunch-Termins als String."""
     berlin_tz = pytz.timezone('Europe/Berlin')
@@ -395,7 +406,9 @@ def index():
         <body>
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">L11 Frühstücksbrunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10 Uhr</h1>
+                {% if show_exception_notice %}
                 <h2 class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir vom normalen Rhythmus ab.</h2>
+                {% endif %}
                 <h2 class="text-xl font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
                 <h3 class="text-sm text-center my-6 text-white italic">Hinweis: Die Anmeldung ist ab Freitag 0 Uhr vor dem Brunch geschlossen und wird am Brunch-Sonntag um 15 Uhr wieder geöffnet.</h3>
                 <p class="text-red-500">{{ error_message }}</p>
@@ -447,7 +460,7 @@ def index():
             </footer>
         </body>
         </html>
-    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year, no_items_available=no_items_available, registration_open=registration_open)
+    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year, no_items_available=no_items_available, registration_open=registration_open, show_exception_notice=should_show_exception_notice())
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
