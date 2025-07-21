@@ -120,9 +120,12 @@ class DatabaseManager:
     def init_db(self):
         conn = self.get_connection()
         c = conn.cursor()
-        # Hinzufügen der E-Mail-Spalte in der Datenbanktabelle
-        c.execute('''CREATE TABLE IF NOT EXISTS brunch_participants 
+        # Tabelle fuer Teilnehmer
+        c.execute('''CREATE TABLE IF NOT EXISTS brunch_participants
                      (name TEXT, email TEXT, item TEXT, for_coffee_only INTEGER)''')
+        # Neue Tabelle fuer Konfiguration
+        c.execute('''CREATE TABLE IF NOT EXISTS config
+                     (key TEXT PRIMARY KEY, value TEXT)''')
         conn.commit()
 
     def add_brunch_entry(self, name, email, item, for_coffee_only):
@@ -189,6 +192,20 @@ class DatabaseManager:
         c = conn.cursor()
         c.execute('SELECT * FROM brunch_participants WHERE name = ?', (name,))
         return c.fetchone()
+
+    # -- Konfigurationsfunktionen --
+    def get_config(self, key):
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute('SELECT value FROM config WHERE key = ?', (key,))
+        row = c.fetchone()
+        return row[0] if row else None
+
+    def set_config(self, key, value):
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute('REPLACE INTO config (key, value) VALUES (?, ?)', (key, value))
+        conn.commit()
         
 db_manager = DatabaseManager()
 
@@ -210,6 +227,15 @@ def event_date_for_month(year, month):
 def should_show_exception_notice():
     """Bestimmt, ob ein Hinweis auf einen Sondertermin angezeigt werden soll."""
     berlin_tz = pytz.timezone('Europe/Berlin')
+    override = db_manager.get_config('next_date_override')
+    try:
+        if override:
+            next_date = berlin_tz.localize(datetime.strptime(override, '%d.%m.%Y'))
+            default_date = event_date_for_month(next_date.year, next_date.month)
+            return next_date.date() != default_date.date()
+    except ValueError:
+        pass
+
     next_date_str = next_brunch_date()
     next_date = berlin_tz.localize(datetime.strptime(next_date_str, '%d.%m.%Y'))
 
@@ -221,6 +247,14 @@ def should_show_exception_notice():
 def next_brunch_date():
     """Liefert das Datum des naechsten Brunch-Termins als String."""
     berlin_tz = pytz.timezone('Europe/Berlin')
+
+    override = db_manager.get_config('next_date_override')
+    if override:
+        try:
+            datetime.strptime(override, '%d.%m.%Y')
+            return override
+        except ValueError:
+            pass
 
     now = datetime.now(berlin_tz)
     month = now.month
@@ -236,6 +270,9 @@ def next_brunch_date():
     return event_day.strftime('%d.%m.%Y')
 
 def is_registration_open():
+    if is_event_cancelled():
+        return False
+
     berlin_tz = pytz.timezone('Europe/Berlin')
     now = datetime.now(berlin_tz)
     next_brunch = berlin_tz.localize(datetime.strptime(next_brunch_date(), '%d.%m.%Y'))
@@ -250,6 +287,9 @@ def is_registration_open():
     logger.debug(f"Aktuelle Zeit: {now}, Nächstes Brunch-Datum: {next_brunch_date()}, Registrierung offen: {registration_open}")
 
     return registration_open
+
+def is_event_cancelled():
+    return db_manager.get_config('next_date_cancelled') == '1'
 
 def validate_name_or_call(text):
     """
@@ -330,6 +370,7 @@ def index():
     coffee_only_participants = db_manager.count_coffee_only_participants()
     logger.debug(f"Anfrage an die Startseite erhalten: Methode {request.method}")
 
+    event_cancelled = is_event_cancelled()
     registration_open = is_registration_open()
 
     if request.method == 'POST':
@@ -406,6 +447,9 @@ def index():
         <body>
             <div class="container mx-auto px-4">
                 <h1 class="text-3xl font-bold text-center my-6">L11 Frühstücksbrunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10 Uhr</h1>
+                {% if event_cancelled %}
+                <h2 class="text-red-500 text-center">Der nächste Termin fällt aus.</h2>
+                {% endif %}
                 {% if show_exception_notice %}
                 <h2 class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir vom normalen Rhythmus ab.</h2>
                 {% endif %}
@@ -460,7 +504,7 @@ def index():
             </footer>
         </body>
         </html>
-    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year, no_items_available=no_items_available, registration_open=registration_open, show_exception_notice=should_show_exception_notice())
+    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year, no_items_available=no_items_available, registration_open=registration_open, show_exception_notice=should_show_exception_notice(), event_cancelled=event_cancelled)
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
@@ -515,6 +559,18 @@ def delete_entry(name):
         'all',
         False
     )
+    return redirect(url_for('admin_page'))
+
+@brunch.route('/admin/update_settings', methods=['POST'])
+@requires_auth
+def update_settings():
+    override_date = request.form.get('override_date', '').strip()
+    cancel_next = 'cancel_next' in request.form
+    if override_date:
+        db_manager.set_config('next_date_override', override_date)
+    else:
+        db_manager.set_config('next_date_override', '')
+    db_manager.set_config('next_date_cancelled', '1' if cancel_next else '0')
     return redirect(url_for('admin_page'))
 
 # Import-Anweisungen und Klassen wie zuvor definiert bleiben unverändert
@@ -573,6 +629,9 @@ def admin_page():
     brunch_info = db_manager.get_brunch_info()
     email_addresses = [entry[1] for entry in brunch_info if entry[1]]
     mailto_link = f"mailto:do1emc@darc.de?bcc={','.join(email_addresses)}&subject=Frühstücksbrunch {next_brunch_date()}"
+    override_date = db_manager.get_config('next_date_override') or ''
+    event_cancelled = is_event_cancelled()
+    next_date = next_brunch_date()
 
     return render_template_string("""
         <!DOCTYPE html>
@@ -627,13 +686,26 @@ def admin_page():
                 <a href="{{ url_for('download_pdf') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Tabelle als PDF herunterladen</a>
                 &nbsp;&nbsp;
                 <a href="{{ url_for('admin_mitbringsel') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Mitbringsel editieren</a>
-                <br><br><br><br>
+                <br><br>
+                <h2 class="text-xl font-bold text-center my-4">Nächster Termin: {{ next_date }}</h2>
+                {% if event_cancelled %}
+                <p class="text-red-500 text-center">Der nächste Termin fällt aus.</p>
+                {% endif %}
+                <form method="post" action="{{ url_for('update_settings') }}" class="my-4">
+                    <label for="override_date">Abweichendes Datum (TT.MM.JJJJ):</label>
+                    <input type="text" id="override_date" name="override_date" value="{{ override_date }}" class="text-black"><br>
+                    <input type="checkbox" id="cancel_next" name="cancel_next" {% if event_cancelled %}checked{% endif %}>
+                    <label for="cancel_next">Nächsten Termin ausfallen lassen</label><br>
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Speichern</button>
+                </form>
+                <br>
                 <img src="/statistik/teilnahmen_statistik.png" alt="Statistik">
                 <br><br>
             </div>
         </body>
         </html>
-    """, brunch_info=brunch_info, current_year=datetime.now().year, mailto_link=mailto_link)
+    """, brunch_info=brunch_info, current_year=datetime.now().year, mailto_link=mailto_link,
+           override_date=override_date, event_cancelled=event_cancelled, next_date=next_date)
 
 # Route zum Anzeigen und Bearbeiten der Mitbringsel-Liste
 @brunch.route('/admin/mitbringsel', methods=['GET', 'POST'])
