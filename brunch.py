@@ -585,6 +585,8 @@ def admin_add_participant():
     )
 
     if request.method == 'POST':
+        # Aktuelle Daten berücksichtigen, falls andere Teilnehmer zwischenzeitlich etwas eingetragen haben
+        taken_items_info = db_manager.get_brunch_info()
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
         selected_item = request.form.get('selected_item', '').strip()
