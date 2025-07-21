@@ -687,6 +687,8 @@ def admin_page():
                 <a href="{{ url_for('download_pdf') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Tabelle als PDF herunterladen</a>
                 &nbsp;&nbsp;
                 <a href="{{ url_for('admin_mitbringsel') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Mitbringsel editieren</a>
+                &nbsp;&nbsp;
+                <a href="{{ url_for('admin_add_participant') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Teilnehmer hinzufügen</a>
                 <br><br>
                 <h2 class="text-xl font-bold text-center my-4">Nächster Termin: {{ next_date }}</h2>
                 {% if event_cancelled %}
