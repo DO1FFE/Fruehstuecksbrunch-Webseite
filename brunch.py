@@ -1024,7 +1024,11 @@ def reset_db():
         return jsonify({"error": str(e)}), 500
 
 # Starten des Threads zur Überwachung und zum Zurücksetzen der Datenbank
-reset_thread = threading.Thread(target=schedule_database_reset)
+# Nutzt reset_database_at_event_time, um die Datenbank pünktlich zum Ende des
+# Brunchs zu leeren. Diese Implementierung prüft minütlich, ob das gesetzte
+# Veranstaltungsdatum überschritten wurde und vermeidet dadurch Verzögerungen
+# durch eine stündliche Überprüfung.
+reset_thread = threading.Thread(target=reset_database_at_event_time)
 reset_thread.daemon = True  # Markieren Sie den Thread als Daemon, damit er automatisch beendet wird, wenn das Hauptprogramm beendet wird.
 reset_thread.start()
 
