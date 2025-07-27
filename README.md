@@ -47,5 +47,8 @@ Sonntage. Setze optional das Kontrollkästchen
 abweichenden oder abgesagten Terminen erscheint automatisch ein Hinweistext auf
 der Startseite.
 
+Die Datenbank der Anmeldungen wird jeweils um 15:00 Uhr des eingestellten
+Brunch-Termins automatisch geleert. Dies gilt auch für verschobene Termine.
+
 ## Autor
 Erik Schauer, DO1FFE - do1ffe@darc.de
