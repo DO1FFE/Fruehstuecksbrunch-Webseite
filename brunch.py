@@ -1006,6 +1006,22 @@ def reset_database_at_event_time():
 
             # Zurücksetzen der Datenbank
             db_manager.reset_db()
+            # Konfigurationen nach einem abgeschlossenen Termin zurücksetzen
+            override = db_manager.get_config('next_date_override')
+            if override:
+                try:
+                    override_dt = datetime.strptime(override, '%d.%m.%Y')
+                    default_dt = event_date_for_month(override_dt.year, override_dt.month)
+                    if override_dt < default_dt:
+                        next_month = override_dt.month % 12 + 1
+                        next_year = override_dt.year + (override_dt.month == 12)
+                        next_dt = event_date_for_month(next_year, next_month)
+                        db_manager.set_config('next_date_override', next_dt.strftime('%d.%m.%Y'))
+                    else:
+                        db_manager.set_config('next_date_override', '')
+                except ValueError:
+                    db_manager.set_config('next_date_override', '')
+            db_manager.set_config('next_date_cancelled', '0')
             logger.debug("Datenbank wurde resettet.")
 
             # Warte bis zum nächsten Tag, um erneut zu prüfen
@@ -1019,6 +1035,21 @@ def reset_database_at_event_time():
 def reset_db():
     try:
         db_manager.reset_db()
+        override = db_manager.get_config('next_date_override')
+        if override:
+            try:
+                override_dt = datetime.strptime(override, '%d.%m.%Y')
+                default_dt = event_date_for_month(override_dt.year, override_dt.month)
+                if override_dt < default_dt:
+                    next_month = override_dt.month % 12 + 1
+                    next_year = override_dt.year + (override_dt.month == 12)
+                    next_dt = event_date_for_month(next_year, next_month)
+                    db_manager.set_config('next_date_override', next_dt.strftime('%d.%m.%Y'))
+                else:
+                    db_manager.set_config('next_date_override', '')
+            except ValueError:
+                db_manager.set_config('next_date_override', '')
+        db_manager.set_config('next_date_cancelled', '0')
         return jsonify({"success": "Datenbank erfolgreich zurückgesetzt"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
