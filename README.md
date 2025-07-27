@@ -49,6 +49,8 @@ der Startseite.
 
 Die Datenbank der Anmeldungen wird jeweils um 15:00 Uhr des eingestellten
 Brunch-Termins automatisch geleert. Dies gilt auch für verschobene Termine.
+Nach dem Reset wird ein gesetzter Sondertermin entfernt, damit automatisch das
+nächste reguläre Datum angezeigt wird.
 
 ## Autor
 Erik Schauer, DO1FFE - do1ffe@darc.de
