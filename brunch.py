@@ -202,6 +202,11 @@ class DatabaseManager:
         c = conn.cursor()
         c.execute('REPLACE INTO config (key, value) VALUES (?, ?)', (key, value))
         conn.commit()
+
+    def clear_special_dates(self):
+        """Setzt abweichende Termine und Ausfälle zurück."""
+        self.set_config('next_date_override', '')
+        self.set_config('next_date_cancelled', '0')
         
 db_manager = DatabaseManager()
 
@@ -342,6 +347,7 @@ def reset_database_if_needed():
     if should_reset_database():
         save_participant_log()
         db_manager.reset_db()
+        db_manager.clear_special_dates()
         
 def schedule_database_reset():
     while True:
@@ -572,6 +578,15 @@ def update_settings():
     db_manager.set_config('next_date_cancelled', '1' if cancel_next else '0')
     return redirect(url_for('admin_page'))
 
+
+@brunch.route('/admin/reset_special_dates', methods=['POST'])
+@requires_auth
+def reset_special_dates():
+    """Entfernt abweichende Termine und setzt Ausfälle zurück."""
+    db_manager.clear_special_dates()
+    logger.debug("Abweichende Termine und Ausfallmarkierungen zurückgesetzt.")
+    return redirect(url_for('admin_page'))
+
 # Import-Anweisungen und Klassen wie zuvor definiert bleiben unverändert
 
 # Hinzufügen einer neuen Route für das Admin-Formular zum Hinzufügen von Teilnehmern
@@ -787,6 +802,9 @@ def admin_page():
                     <input type="checkbox" id="cancel_next" name="cancel_next" {% if event_cancelled %}checked{% endif %}>
                     <label for="cancel_next">Nächsten Termin ausfallen lassen</label><br>
                     <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Speichern</button>
+                </form>
+                <form method="post" action="{{ url_for('reset_special_dates') }}" class="my-4">
+                    <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Ausfall/Abweichung zurücksetzen</button>
                 </form>
                 <br>
                 <img src="/statistik/teilnahmen_statistik.png" alt="Statistik">
@@ -1006,22 +1024,7 @@ def reset_database_at_event_time():
 
             # Zurücksetzen der Datenbank
             db_manager.reset_db()
-            # Konfigurationen nach einem abgeschlossenen Termin zurücksetzen
-            override = db_manager.get_config('next_date_override')
-            if override:
-                try:
-                    override_dt = datetime.strptime(override, '%d.%m.%Y')
-                    default_dt = event_date_for_month(override_dt.year, override_dt.month)
-                    if override_dt < default_dt:
-                        next_month = override_dt.month % 12 + 1
-                        next_year = override_dt.year + (override_dt.month == 12)
-                        next_dt = event_date_for_month(next_year, next_month)
-                        db_manager.set_config('next_date_override', next_dt.strftime('%d.%m.%Y'))
-                    else:
-                        db_manager.set_config('next_date_override', '')
-                except ValueError:
-                    db_manager.set_config('next_date_override', '')
-            db_manager.set_config('next_date_cancelled', '0')
+            db_manager.clear_special_dates()
             logger.debug("Datenbank wurde resettet.")
 
             # Warte bis zum nächsten Tag, um erneut zu prüfen
@@ -1035,21 +1038,7 @@ def reset_database_at_event_time():
 def reset_db():
     try:
         db_manager.reset_db()
-        override = db_manager.get_config('next_date_override')
-        if override:
-            try:
-                override_dt = datetime.strptime(override, '%d.%m.%Y')
-                default_dt = event_date_for_month(override_dt.year, override_dt.month)
-                if override_dt < default_dt:
-                    next_month = override_dt.month % 12 + 1
-                    next_year = override_dt.year + (override_dt.month == 12)
-                    next_dt = event_date_for_month(next_year, next_month)
-                    db_manager.set_config('next_date_override', next_dt.strftime('%d.%m.%Y'))
-                else:
-                    db_manager.set_config('next_date_override', '')
-            except ValueError:
-                db_manager.set_config('next_date_override', '')
-        db_manager.set_config('next_date_cancelled', '0')
+        db_manager.clear_special_dates()
         return jsonify({"success": "Datenbank erfolgreich zurückgesetzt"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
