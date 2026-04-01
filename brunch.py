@@ -340,13 +340,16 @@ def should_reset_database():
     current_brunch_str = current_brunch_date()
     current_brunch = berlin_tz.localize(datetime.strptime(current_brunch_str, '%d.%m.%Y'))
     reset_time = current_brunch.replace(hour=15, minute=0, second=0, microsecond=0)
+    last_reset_for_date = db_manager.get_config('last_reset_for_date')
 
-    return now > reset_time
+    return now > reset_time and last_reset_for_date != current_brunch_str
 
 def reset_database_if_needed():
     if should_reset_database():
+        current_brunch_str = current_brunch_date()
         save_participant_log()
         db_manager.reset_db()
+        db_manager.set_config('last_reset_for_date', current_brunch_str)
         db_manager.clear_special_dates()
         
 def schedule_database_reset():
@@ -1019,11 +1022,13 @@ def save_participant_log():
 def reset_database_at_event_time():
     while True:
         if should_reset_database():
+            current_brunch_str = current_brunch_date()
             # Speichern der Teilnehmerinformationen in eine Log-Datei
             save_participant_log()
 
             # Zurücksetzen der Datenbank
             db_manager.reset_db()
+            db_manager.set_config('last_reset_for_date', current_brunch_str)
             db_manager.clear_special_dates()
             logger.debug("Datenbank wurde resettet.")
 
