@@ -7,6 +7,7 @@ from functools import wraps
 from datetime import datetime, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
+import os
 import sqlite3
 import re
 import threading
@@ -18,6 +19,20 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
 from io import BytesIO
 import requests
+from markupsafe import Markup
+from urllib.parse import quote_plus
+
+
+ERSTELLUNGSJAHR = 2023
+COPYRIGHT_EMAIL = 'do1ffe@darc.de'
+COPYRIGHT_INHABER = f'Erik Schauer, {COPYRIGHT_EMAIL}'
+VERANSTALTUNGSORT_NAME = 'Haus der Begegnung'
+VERANSTALTUNGSORT_STRASSE = 'I.Weberstr. 28'
+VERANSTALTUNGSORT_ORT = '45127 Essen'
+VERANSTALTUNGSORT_NAVIGATIONSZIEL = 'Deutscher Amateur-Radio-Club (DARC) e.V. Ortsverband Essen-Mitte L11'
+VERANSTALTUNGSORT_ROUTE_URL = (
+    f'https://www.google.com/maps/search/?api=1&query={quote_plus(VERANSTALTUNGSORT_NAVIGATIONSZIEL)}'
+)
 
 
 class DAPNET:
@@ -33,14 +48,29 @@ class DAPNET:
         self.headers = {'Content-type': 'application/json'}
 
     def send_message(self, message, destination_callsign, tx_group, emergency=False):
+        if not self.callsign or not self.password:
+            logger.info("DAPNET-Nachricht übersprungen, weil Zugangsdaten fehlen.")
+            return None
+
         data = {
             "text": message,
             "callSignNames": [destination_callsign] if isinstance(destination_callsign, str) else destination_callsign,
             "transmitterGroupNames": [tx_group] if isinstance(tx_group, str) else tx_group,
             "emergency": emergency
         }
-        response = requests.post(self.url, headers=self.headers, auth=(self.callsign, self.password), json=data)
-        return response
+        try:
+            response = requests.post(
+                self.url,
+                headers=self.headers,
+                auth=(self.callsign, self.password),
+                json=data,
+                timeout=5
+            )
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            logger.warning("DAPNET-Nachricht konnte nicht gesendet werden: %s", exc)
+            return None
 
     def log_message(self, message, destination_callsigns, transmitter_group, emergency=False):
         """
@@ -59,6 +89,8 @@ class DAPNET:
 def setup_logger():
     logger = logging.getLogger('BrunchLogger')
     logger.setLevel(logging.DEBUG)
+    if logger.handlers:
+        return logger
     handler = RotatingFileHandler('brunch.log', maxBytes=10000, backupCount=5)
     handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     logger.addHandler(handler)
@@ -67,15 +99,21 @@ def setup_logger():
 logger = setup_logger()
 
 def load_credentials():
-    with open('.pwd', 'r') as file:
-        credentials = {}
-        for line in file:
-            username, password = line.strip().split(':')
-            credentials[username] = password
-        return credentials
+    credentials = {}
+    try:
+        with open('.pwd', 'r', encoding='utf-8') as file:
+            for line in file:
+                line = line.strip()
+                if not line or line.startswith('#') or ':' not in line:
+                    continue
+                username, password = line.split(':', 1)
+                credentials[username.strip()] = password.strip()
+    except FileNotFoundError:
+        logger.warning(".pwd-Datei nicht gefunden. Admin-Login und DAPNET sind deaktiviert.")
+    return credentials
 
 credentials = load_credentials()
-dapnet_client = DAPNET(credentials['dapnet_username'], credentials['dapnet_password'])
+dapnet_client = DAPNET(credentials.get('dapnet_username', ''), credentials.get('dapnet_password', ''))
 
 # Überprüfen der Anmeldedaten
 def check_auth(username, password):
@@ -101,35 +139,40 @@ class DatabaseManager:
     def __init__(self, db_name='brunch.db'):
         self.db_name = db_name
         self.conn = None
+        self.lock = threading.RLock()
         self.init_db()
 
     def get_connection(self):
-        if not self.conn:
-            self.conn = sqlite3.connect(self.db_name, check_same_thread=False)
-        return self.conn
+        with self.lock:
+            if not self.conn:
+                self.conn = sqlite3.connect(self.db_name, check_same_thread=False)
+            return self.conn
 
     def close_connection(self):
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+        with self.lock:
+            if self.conn:
+                self.conn.close()
+                self.conn = None
 
     def init_db(self):
-        conn = self.get_connection()
-        c = conn.cursor()
-        # Tabelle fuer Teilnehmer
-        c.execute('''CREATE TABLE IF NOT EXISTS brunch_participants
-                     (name TEXT, email TEXT, item TEXT, for_coffee_only INTEGER)''')
-        # Neue Tabelle fuer Konfiguration
-        c.execute('''CREATE TABLE IF NOT EXISTS config
-                     (key TEXT PRIMARY KEY, value TEXT)''')
-        conn.commit()
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            # Tabelle fuer Teilnehmer
+            c.execute('''CREATE TABLE IF NOT EXISTS brunch_participants
+                         (name TEXT, email TEXT, item TEXT, for_coffee_only INTEGER)''')
+            # Neue Tabelle fuer Konfiguration
+            c.execute('''CREATE TABLE IF NOT EXISTS config
+                         (key TEXT PRIMARY KEY, value TEXT)''')
+            conn.commit()
 
     def add_brunch_entry(self, name, email, item, for_coffee_only):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('INSERT INTO brunch_participants (name, email, item, for_coffee_only) VALUES (?, ?, ?, ?)', 
-                  (name, email, item, for_coffee_only))
-        conn.commit()
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('INSERT INTO brunch_participants (name, email, item, for_coffee_only) VALUES (?, ?, ?, ?)',
+                      (name, email, item, for_coffee_only))
+            conn.commit()
         logger.debug(f"Neuer Eintrag: {name}, {email}, {item}, {for_coffee_only}.")
         dapnet_client.log_message(
             f"Frühstück: Neuer Eintrag: {name}, {email}, {item}, {for_coffee_only}.",
@@ -139,69 +182,79 @@ class DatabaseManager:
         )
 
     def get_brunch_info(self):
-        conn = self.get_connection()
-        c = conn.cursor()
-        # Anpassung der Abfrage, um die E-Mail-Adresse einzuschließen
-        c.execute('SELECT name, email, item, for_coffee_only FROM brunch_participants')
-        return c.fetchall()
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            # Anpassung der Abfrage, um die E-Mail-Adresse einzuschließen
+            c.execute('SELECT name, email, item, for_coffee_only FROM brunch_participants')
+            return c.fetchall()
 
     def reset_db(self):
         logger.debug("Resetting the database")
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('DELETE FROM brunch_participants')
-        conn.commit()
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('DELETE FROM brunch_participants')
+            conn.commit()
 
     def delete_entry(self, name):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('DELETE FROM brunch_participants WHERE name = ?', (name,))
-        conn.commit()
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('DELETE FROM brunch_participants WHERE name = ?', (name,))
+            conn.commit()
 
     def participant_exists(self, name):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('SELECT * FROM brunch_participants WHERE name = ?', (name,))
-        return c.fetchone() is not None
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('SELECT * FROM brunch_participants WHERE name = ?', (name,))
+            return c.fetchone() is not None
 
     def count_participants_excluding_coffee_only(self):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM brunch_participants WHERE for_coffee_only = 0')
-        return c.fetchone()[0]
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('SELECT COUNT(*) FROM brunch_participants WHERE for_coffee_only = 0')
+            return c.fetchone()[0]
 
     def count_coffee_only_participants(self):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM brunch_participants WHERE for_coffee_only = 1')
-        return c.fetchone()[0]
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('SELECT COUNT(*) FROM brunch_participants WHERE for_coffee_only = 1')
+            return c.fetchone()[0]
 
     def update_entry(self, old_name, new_name, email, item, for_coffee_only):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('UPDATE brunch_participants SET name = ?, email = ?, item = ?, for_coffee_only = ? WHERE name = ?',
-                  (new_name, email, item, for_coffee_only, old_name))
-        conn.commit()
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('UPDATE brunch_participants SET name = ?, email = ?, item = ?, for_coffee_only = ? WHERE name = ?',
+                      (new_name, email, item, for_coffee_only, old_name))
+            conn.commit()
 
     def get_entry(self, name):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('SELECT * FROM brunch_participants WHERE name = ?', (name,))
-        return c.fetchone()
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('SELECT * FROM brunch_participants WHERE name = ?', (name,))
+            return c.fetchone()
 
     # -- Konfigurationsfunktionen --
     def get_config(self, key):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('SELECT value FROM config WHERE key = ?', (key,))
-        row = c.fetchone()
-        return row[0] if row else None
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('SELECT value FROM config WHERE key = ?', (key,))
+            row = c.fetchone()
+            return row[0] if row else None
 
     def set_config(self, key, value):
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute('REPLACE INTO config (key, value) VALUES (?, ?)', (key, value))
-        conn.commit()
+        with self.lock:
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute('REPLACE INTO config (key, value) VALUES (?, ?)', (key, value))
+            conn.commit()
 
     def clear_special_dates(self):
         """Setzt abweichende Termine und Ausfälle zurück."""
@@ -287,29 +340,30 @@ def validate_name_or_call(text):
     Überprüft, ob der Text ein gültiges Rufzeichen oder einen Namen darstellt.
     Erlaubt sind Buchstaben, Zahlen, Leerzeichen und bestimmte Sonderzeichen.
     """
-    return re.match(r'^[A-Za-z0-9äöüÄÖÜß\- ]+$', text) is not None
+    return re.fullmatch(r'[A-Za-z0-9äöüÄÖÜß\- ]+', text.strip()) is not None
 
 def validate_bringalong(text):
     """
     Überprüft, ob das Mitbringsel gültig ist.
-    Gültig ist nur ein Wort, Sonderzeichen wie Bindestriche sind erlaubt.
+    Gültig sind maximal zwei Wörter; Bindestriche innerhalb eines Wortes sind erlaubt.
     """
-    return re.match(r'^[A-Za-zäöüÄÖÜß\-]+$', text) is not None
+    wort = r'[A-Za-zäöüÄÖÜß]+(?:-[A-Za-zäöüÄÖÜß]+)*'
+    return re.fullmatch(rf'{wort}(?: {wort})?', text.strip()) is not None
 
 # Funktion zur Überprüfung der E-Mail-Adresse
 def validate_email(email):
-    return re.match(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$', email) is not None
+    return re.fullmatch(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', email.strip()) is not None
 
 def read_items_from_file():
     try:
-        with open('mitbringsel.txt', 'r') as file:
+        with open('mitbringsel.txt', 'r', encoding='utf-8') as file:
             return [line.strip() for line in file if line.strip()]
     except FileNotFoundError:
         return []
 
 def add_item_to_file(item):
     formatted_item = item.lower().capitalize()
-    with open('mitbringsel.txt', 'a') as file:
+    with open('mitbringsel.txt', 'a', encoding='utf-8') as file:
         file.write(f"{formatted_item}\n")
     logger.debug(f"Neues Mitbringsel {formatted_item} hinzugefügt.")
 
@@ -360,11 +414,523 @@ def schedule_database_reset():
 
 brunch = Flask(__name__)
 
+
+SEITEN_STIL = """
+    :root {
+        --farbe-text: #273d5e;
+        --farbe-muted: #595e65;
+        --farbe-linie: #d6dde5;
+        --farbe-flaeche: #ffffff;
+        --farbe-hintergrund: #000000;
+        --farbe-primaer: #273d5e;
+        --farbe-primaer-dunkel: #0d3444;
+        --farbe-darc-blau: #2aa6da;
+        --farbe-akzent: #f7a900;
+        --farbe-warnung: #d42020;
+        --farbe-erfolg: #53a062;
+        --schatten: 0 18px 50px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body.app-shell {
+        min-height: 100vh;
+        margin: 0;
+        background:
+            linear-gradient(180deg, #0d3444 0, #000000 260px),
+            #000000;
+        color: var(--farbe-text);
+        font-family: Arial, Helvetica, sans-serif;
+    }
+
+    a {
+        color: inherit;
+    }
+
+    .seitenrahmen {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+    }
+
+    .kopfbereich,
+    .aktionskarte,
+    .tabellenkarte {
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid rgba(42, 166, 218, 0.30);
+        border-radius: 8px;
+        box-shadow: var(--schatten);
+    }
+
+    .kopfbereich {
+        position: relative;
+        overflow: hidden;
+        padding: 34px;
+        background:
+            linear-gradient(135deg, rgba(39, 61, 94, 0.98), rgba(13, 52, 68, 0.98)),
+            #273d5e;
+        color: #ffffff;
+    }
+
+    .kopfbereich::after {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: 6px;
+        background: linear-gradient(90deg, var(--farbe-darc-blau), var(--farbe-akzent));
+        content: "";
+    }
+
+    .bereichstitel {
+        margin: 0 0 10px;
+        color: var(--farbe-darc-blau);
+        font-size: 0.88rem;
+        font-weight: 700;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+        margin-top: 0;
+    }
+
+    .kopfbereich h1 {
+        max-width: 820px;
+        margin-bottom: 12px;
+        color: #ffffff;
+        font-size: 2.3rem;
+        line-height: 1.08;
+        letter-spacing: 0;
+    }
+
+    .terminzeile {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        width: fit-content;
+        margin: 0;
+        padding: 10px 14px;
+        border: 1px solid var(--farbe-akzent);
+        border-radius: 8px;
+        background: var(--farbe-akzent);
+        color: #000000;
+        font-weight: 700;
+    }
+
+    .terminzeile span {
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .terminzeile span + span::before {
+        margin-right: 14px;
+        color: rgba(0, 0, 0, 0.42);
+        content: "|";
+    }
+
+    .ortskarte {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: center;
+        max-width: 680px;
+        margin-top: 14px;
+        padding: 16px;
+        border: 1px solid rgba(42, 166, 218, 0.55);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.10);
+    }
+
+    .ortskarte p {
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .ortskarte strong {
+        display: block;
+        margin-bottom: 4px;
+        color: #ffffff;
+        font-size: 1.05rem;
+    }
+
+    .ortskarte a {
+        color: #000000;
+        white-space: nowrap;
+    }
+
+    .kennzahlen {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        margin: 22px 0;
+    }
+
+    .kennzahl {
+        padding: 20px;
+    }
+
+    .kennzahl span {
+        display: block;
+        color: var(--farbe-muted);
+        font-size: 0.95rem;
+    }
+
+    .kennzahl strong {
+        display: block;
+        margin-top: 8px;
+        color: var(--farbe-primaer);
+        font-size: 2.4rem;
+        line-height: 1;
+    }
+
+    .formularbereich {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 20px;
+        align-items: start;
+    }
+
+    .aktionskarte,
+    .tabellenkarte {
+        padding: 24px;
+    }
+
+    .aktionskarte h2 {
+        margin-bottom: 16px;
+        font-size: 1.35rem;
+        line-height: 1.2;
+    }
+
+    .formularraster {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+    }
+
+    .formulargruppe {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .ganze-breite {
+        grid-column: 1 / -1;
+    }
+
+    label {
+        color: var(--farbe-primaer);
+        font-weight: 700;
+    }
+
+    .eingabe,
+    .auswahl,
+    textarea {
+        width: 100%;
+        min-height: 48px;
+        border: 1px solid #c8d3dc;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #101828;
+        padding: 12px 14px;
+        font: inherit;
+    }
+
+    textarea {
+        min-height: 220px;
+        resize: vertical;
+    }
+
+    .eingabe:focus,
+    .auswahl:focus,
+    textarea:focus {
+        border-color: var(--farbe-darc-blau);
+        box-shadow: 0 0 0 3px rgba(42, 166, 218, 0.24);
+        outline: none;
+    }
+
+    .eingabe:disabled,
+    .auswahl:disabled,
+    .schaltflaeche:disabled {
+        cursor: not-allowed;
+        opacity: 0.62;
+    }
+
+    .checkbox-zeile {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid #d6dde5;
+        border-radius: 8px;
+        background: #eef3f6;
+    }
+
+    .checkbox-zeile input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+        margin-top: 1px;
+        accent-color: var(--farbe-darc-blau);
+    }
+
+    .hilfetext,
+    .kleiner-text {
+        color: var(--farbe-muted);
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .mitbringsel-liste {
+        padding: 14px;
+        border: 1px solid #d6dde5;
+        border-radius: 8px;
+        background: #eef3f6;
+        color: var(--farbe-primaer);
+        line-height: 1.5;
+    }
+
+    .meldung {
+        margin: 18px 0;
+        padding: 14px 16px;
+        border-radius: 8px;
+        font-weight: 700;
+    }
+
+    .meldung-fehler {
+        border: 1px solid #f3b5b5;
+        background: #fff0f0;
+        color: var(--farbe-warnung);
+    }
+
+    .meldung-erfolg {
+        border: 1px solid #bfe2c7;
+        background: #f0fbf2;
+        color: var(--farbe-erfolg);
+    }
+
+    .hinweisband {
+        margin: 18px 0;
+        padding: 16px 18px;
+        border: 1px solid var(--farbe-akzent);
+        border-radius: 8px;
+        background: #fdf4e7;
+        color: #273d5e;
+        font-weight: 700;
+    }
+
+    .hinweisband.warnung {
+        border-color: #f3b5b5;
+        background: #fff0f0;
+        color: var(--farbe-warnung);
+    }
+
+    .schaltflaeche {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 0;
+        border-radius: 8px;
+        padding: 11px 16px;
+        font-weight: 800;
+        text-decoration: none;
+        transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    .schaltflaeche:hover {
+        transform: translateY(-1px);
+    }
+
+    .schaltflaeche-primaer {
+        background: var(--farbe-primaer);
+        color: #ffffff;
+    }
+
+    .schaltflaeche-primaer:hover {
+        background: #1b5771;
+    }
+
+    .schaltflaeche-sekundaer {
+        background: #e8e8e8;
+        color: var(--farbe-primaer);
+    }
+
+    .schaltflaeche-erfolg {
+        background: #1b5771;
+        color: #ffffff;
+    }
+
+    .schaltflaeche-gefahr {
+        background: var(--farbe-warnung);
+        color: #ffffff;
+    }
+
+    .aktionsleiste {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 18px 0;
+    }
+
+    .tabellenkarte {
+        overflow-x: auto;
+    }
+
+    .daten-tabelle {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 720px;
+    }
+
+    .daten-tabelle th,
+    .daten-tabelle td {
+        border-bottom: 1px solid #d6dde5;
+        padding: 13px 14px;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .daten-tabelle th {
+        background: #eef3f6;
+        color: var(--farbe-primaer);
+        font-size: 0.92rem;
+    }
+
+    .daten-tabelle tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .zeilenaktionen {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .admin-raster {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .kopfbereich + .aktionskarte,
+    .kopfbereich + .formularbereich,
+    .kopfbereich + .tabellenkarte,
+    .admin-raster + .aktionskarte {
+        margin-top: 20px;
+    }
+
+    .app-footer {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto 24px;
+        padding: 18px;
+        border-top: 1px solid rgba(42, 166, 218, 0.45);
+        color: #ffffff;
+        text-align: center;
+    }
+
+    .app-footer a {
+        color: var(--farbe-darc-blau);
+        font-weight: 700;
+    }
+
+    img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+    }
+
+    @media (min-width: 760px) {
+        .kopfbereich h1 {
+            font-size: 3.25rem;
+        }
+    }
+
+    @media (max-width: 860px) {
+        .formularbereich,
+        .admin-raster,
+        .kennzahlen {
+            grid-template-columns: 1fr;
+        }
+
+        .formularraster {
+            grid-template-columns: 1fr;
+        }
+
+        .kopfbereich {
+            padding: 26px;
+        }
+    }
+
+    @media (max-width: 560px) {
+        .seitenrahmen {
+            width: min(100% - 20px, 1120px);
+            padding-top: 18px;
+        }
+
+        .aktionskarte,
+        .tabellenkarte {
+            padding: 18px;
+        }
+
+        .kopfbereich h1 {
+            font-size: 2rem;
+        }
+
+        .terminzeile,
+        .schaltflaeche {
+            width: 100%;
+        }
+
+        .terminzeile span {
+            width: 100%;
+        }
+
+        .terminzeile span + span::before {
+            content: none;
+        }
+
+        .ortskarte {
+            grid-template-columns: 1fr;
+        }
+    }
+"""
+
+
+def copyright_text():
+    aktuelles_jahr = datetime.now().year
+    jahre = str(ERSTELLUNGSJAHR)
+    if aktuelles_jahr > ERSTELLUNGSJAHR:
+        jahre = f"{ERSTELLUNGSJAHR} - {aktuelles_jahr}"
+    return f"© {jahre} {COPYRIGHT_INHABER}"
+
+
+def footer_html():
+    return Markup(f'<footer class="app-footer">{copyright_text()}</footer>')
+
+
+def render_seite(template, **context):
+    context.setdefault('seiten_stil', SEITEN_STIL)
+    context.setdefault('footer_html', footer_html())
+    context.setdefault('veranstaltungsort_name', VERANSTALTUNGSORT_NAME)
+    context.setdefault('veranstaltungsort_strasse', VERANSTALTUNGSORT_STRASSE)
+    context.setdefault('veranstaltungsort_ort', VERANSTALTUNGSORT_ORT)
+    context.setdefault('veranstaltungsort_route_url', VERANSTALTUNGSORT_ROUTE_URL)
+    return render_template_string(template, **context)
+
+
 @brunch.route('/', methods=['GET', 'POST'])
 def index():
-    current_year = datetime.now().year
     next_brunch_date_str = next_brunch_date()
     error_message = ""
+    meldung_typ = "fehler"
     available_items = get_available_items()
     no_items_available = len(available_items) == 0 and not any(item.lower() not in [entry[2].lower() for entry in db_manager.get_brunch_info()] for item in read_items_from_file())
     total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
@@ -387,13 +953,16 @@ def index():
             elif not validate_name_or_call(name):
                 error_message = "Bitte ein gültiges Rufzeichen oder einen vollständigen Namen eingeben."
             elif custom_item and not validate_bringalong(custom_item):
-                error_message = "Das Mitbringsel darf nur aus maximal zwei Worten ohne Sonderzeichen bestehen."
+                error_message = "Das Mitbringsel darf aus maximal zwei Wörtern mit Buchstaben oder Bindestrichen bestehen."
+            elif not for_coffee_only and not (custom_item or selected_item):
+                error_message = "Bitte ein Mitbringsel auswählen, ein neues eintragen oder „Nur zum Kaffeetrinken“ wählen."
             elif db_manager.participant_exists(name):
                 return redirect(url_for('confirm_delete', name=name))
             else:
                 if for_coffee_only:
                     db_manager.add_brunch_entry(name, email, '', 1)
                     error_message = f"Teilnehmer '{name}' als Kaffeetrinker hinzugefügt."
+                    meldung_typ = "erfolg"
                 else:
                     item_lower = (custom_item if custom_item else selected_item).lower()
                     if item_lower in [item.lower() for _, _, item, _ in db_manager.get_brunch_info()]:
@@ -404,6 +973,7 @@ def index():
                             add_item_to_file(custom_item)
                         db_manager.add_brunch_entry(name, email, item_to_add, 0)
                         error_message = f"Teilnehmer '{name}' mit Mitbringsel '{item_to_add}' hinzugefügt."
+                        meldung_typ = "erfolg"
 
                 total_participants_excluding_coffee_only = db_manager.count_participants_excluding_coffee_only()
                 coffee_only_participants = db_manager.count_coffee_only_participants()
@@ -415,97 +985,109 @@ def index():
     taken_items = [item for _, _, item, _ in taken_items_info if item]
     taken_items_str = ', '.join(taken_items)
 
-    return render_template_string("""
+    return render_seite("""
         <!DOCTYPE html>
         <html lang="de">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>L11 Frühstücksbrunch Anmeldung</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-            <style>
-                .small-text {
-                    font-size: 0.7em;
-                    font-weight: normal;
-                }
-                body {
-                    background-color: #2aa6da;
-                    color: white;
-                }
-                input,
-                select {
-                    color: black;
-                }
-                input[type="checkbox"] {
-                    transform: scale(2);
-                    margin: 5px;
-                }
-                .disabled-field {
-                    background-color: #f0f0f0;
-                }
-            </style>
+            <style>{{ seiten_stil | safe }}</style>
         </head>
-        <body>
-            <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">L11 Frühstücksbrunch Anmeldung - Sonntag, {{ next_brunch_date_str }} 10 Uhr</h1>
+        <body class="app-shell">
+            <main class="seitenrahmen">
+                <section class="kopfbereich">
+                    <p class="bereichstitel">L11 Frühstücksbrunch</p>
+                    <h1>Anmeldung zum gemeinsamen Frühstück</h1>
+                    <p class="terminzeile">
+                        <span>Sonntag, {{ next_brunch_date_str }} um 10 Uhr</span>
+                        <span>{{ veranstaltungsort_strasse }}, {{ veranstaltungsort_ort }}</span>
+                    </p>
+                    <div class="ortskarte" aria-label="Veranstaltungsort">
+                        <p>
+                            <strong>{{ veranstaltungsort_name }}</strong>
+                            Navigationsziel: DARC Ortsverband Essen-Mitte L11
+                        </p>
+                        <a href="{{ veranstaltungsort_route_url }}" class="schaltflaeche schaltflaeche-sekundaer" target="_blank" rel="noopener">Route planen</a>
+                    </div>
+                </section>
+
                 {% if event_cancelled %}
-                <h2 class="text-red-500 text-center">Der nächste Termin fällt aus.</h2>
+                <div class="hinweisband warnung">Der nächste Termin fällt aus.</div>
                 {% endif %}
                 {% if show_exception_notice %}
-                <h2 class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir einmalig vom normalen Rhythmus ab.</h2>
+                <div class="hinweisband">Aus organisatorischen Gründen weichen wir einmalig vom normalen Rhythmus ab.</div>
                 {% endif %}
-                <h2 class="text-xl font-bold text-center my-6">Teilnehmende Personen (ohne Kaffeetrinker): {{ total_participants_excluding_coffee_only }}, Kaffeetrinker: {{ coffee_only_participants }}</h2>
-                <h3 class="text-sm text-center my-6 text-white italic">Hinweis: Die Anmeldung ist ab Freitag 0 Uhr vor dem Brunch geschlossen und wird am Brunch-Sonntag um 15 Uhr wieder geöffnet.</h3>
-                <p class="text-red-500">{{ error_message }}</p>
-                <form method="post" class="mb-4">
-                    <table>
-                        <tr>
-                            <td><label for="name">Rufzeichen oder vollständiger Name:</label></td>
-                            <td><input type="text" name="name" class="border p-2" id="name" {% if not registration_open %}disabled{% endif %}></td>
-                        </tr>
-                        <tr>
-                            <td><label for="email">E-Mail:</label></td>
-                            <td><input type="email" name="email" class="border p-2" id="email" {% if not registration_open %}disabled{% endif %}></td>
-                        </tr>
-                        <tr>
-                            <td><label for="selected_item">Mitbringsel:</label></td>
-                            <td>
+
+                <section class="kennzahlen" aria-label="Aktueller Stand">
+                    <article class="aktionskarte kennzahl">
+                        <span>Teilnehmende Personen</span>
+                        <strong>{{ total_participants_excluding_coffee_only }}</strong>
+                    </article>
+                    <article class="aktionskarte kennzahl">
+                        <span>Kaffeetrinker</span>
+                        <strong>{{ coffee_only_participants }}</strong>
+                    </article>
+                </section>
+
+                {% if error_message %}
+                <div class="meldung {{ 'meldung-erfolg' if meldung_typ == 'erfolg' else 'meldung-fehler' }}" role="status">
+                    {{ error_message }}
+                </div>
+                {% endif %}
+
+                <section class="formularbereich">
+                    <form method="post" class="aktionskarte">
+                        <div class="formularraster">
+                            <div class="formulargruppe">
+                                <label for="name">Rufzeichen oder vollständiger Name</label>
+                                <input type="text" name="name" class="eingabe" id="name" autocomplete="name" required {% if not registration_open %}disabled{% endif %}>
+                            </div>
+                            <div class="formulargruppe">
+                                <label for="email">E-Mail</label>
+                                <input type="email" name="email" class="eingabe" id="email" autocomplete="email" required {% if not registration_open %}disabled{% endif %}>
+                            </div>
+                            <div class="formulargruppe ganze-breite">
+                                <label for="selected_item">Mitbringsel</label>
                                 {% if no_items_available %}
-                                    <input type="text" name="selected_item" class="border p-2 disabled-field" id="selected_item" value="Bitte selbst hinzufügen" disabled>
+                                    <input type="text" name="selected_item" class="eingabe" id="selected_item" value="Bitte selbst hinzufügen" disabled>
                                 {% else %}
-                                    <select name="selected_item" class="border p-2" id="selected_item" {% if not registration_open %}disabled{% endif %}>
+                                    <select name="selected_item" class="auswahl" id="selected_item" {% if not registration_open %}disabled{% endif %}>
                                         {% for item in available_items %}
                                             <option value="{{ item }}">{{ item }}</option>
                                         {% endfor %}
                                     </select>
                                 {% endif %}
-                            </td>
-                            <td class="small-text">
-                                <div><b>Von anderen bereits ausgewählte Mitbringsel:</b></div>
-                                <div>{{ taken_items_str }}</div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><label for="custom_item">Oder neues Mitbringsel hinzufügen:</label></td>
-                            <td><input type="text" name="custom_item" class="border p-2" id="custom_item" {% if not registration_open %}disabled{% endif %}></td>
-                        </tr>
-                        <tr>
-                            <td><label for="for_coffee_only">Nur zum Kaffeetrinken:<br>(Mitbringsel wird ignoriert)</label></td>
-                            <td><input type="checkbox" name="for_coffee_only" id="for_coffee_only" {% if not registration_open %}disabled{% endif %}></td>
-                        </tr>
-                        <tr>
-                            <td></td>
-                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" {% if not registration_open %}disabled{% endif %}>Anmelden / Abmelden</button></td>
-                        </tr>
-                    </table>
-                </form>
-            </div>
-            <footer class="bg-white text-center text-gray-700 p-4">
-                © 2023 - {{ current_year }} Erik Schauer, DO1FFE - <a href="mailto:do1ffe@darc.de" class="text-blue-500">do1ffe@darc.de</a>
-            </footer>
+                            </div>
+                            <div class="formulargruppe ganze-breite">
+                                <label for="custom_item">Oder neues Mitbringsel hinzufügen</label>
+                                <input type="text" name="custom_item" class="eingabe" id="custom_item" placeholder="z. B. Obstsalat" {% if not registration_open %}disabled{% endif %}>
+                            </div>
+                            <label class="checkbox-zeile ganze-breite" for="for_coffee_only">
+                                <input type="checkbox" name="for_coffee_only" id="for_coffee_only" {% if not registration_open %}disabled{% endif %}>
+                                <span>Nur zum Kaffeetrinken <span class="kleiner-text">(Mitbringsel wird ignoriert)</span></span>
+                            </label>
+                            <div class="formulargruppe ganze-breite">
+                                <button type="submit" class="schaltflaeche schaltflaeche-primaer" {% if not registration_open %}disabled{% endif %}>Anmelden / Abmelden</button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <aside class="aktionskarte">
+                        <h2>Aktuelle Mitbringsel</h2>
+                        {% if taken_items_str %}
+                        <p class="mitbringsel-liste">{{ taken_items_str }}</p>
+                        {% else %}
+                        <p class="mitbringsel-liste">Noch keine Mitbringsel vergeben.</p>
+                        {% endif %}
+                        <p class="hilfetext">Die Anmeldung ist ab Freitag 0 Uhr vor dem Brunch geschlossen und wird am Brunch-Sonntag um 15 Uhr wieder geöffnet.</p>
+                    </aside>
+                </section>
+            </main>
+            {{ footer_html }}
         </body>
         </html>
-    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, next_brunch_date_str=next_brunch_date_str, current_year=current_year, no_items_available=no_items_available, registration_open=registration_open, show_exception_notice=should_show_exception_notice(), event_cancelled=event_cancelled)
+    """, total_participants_excluding_coffee_only=total_participants_excluding_coffee_only, coffee_only_participants=coffee_only_participants, available_items=available_items, taken_items_str=taken_items_str, error_message=error_message, meldung_typ=meldung_typ, next_brunch_date_str=next_brunch_date_str, no_items_available=no_items_available, registration_open=registration_open, show_exception_notice=should_show_exception_notice(), event_cancelled=event_cancelled)
 
 @brunch.route('/confirm_delete/<name>', methods=['GET', 'POST'])
 def confirm_delete(name):
@@ -521,30 +1103,30 @@ def confirm_delete(name):
 
         return redirect(url_for('index'))
 
-    return render_template_string("""
+    return render_seite("""
         <!DOCTYPE html>
         <html lang="de">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Teilnehmer löschen</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-            <style>
-                body {
-                    background-color: #2aa6da;
-                    color: white; /* Setzt die Textfarbe auf Weiß */
-                }
-            </style>
+            <style>{{ seiten_stil | safe }}</style>
         </head>
-        <body>
-            <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">Teilnehmer löschen</h1>
-                <p>Möchtest du <b> {{ name }} </b> wirklich löschen?</p>
-                <form method="POST">
-                    <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Löschen</button>
-                    <a href="{{ url_for('index') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Abbrechen</a>
+        <body class="app-shell">
+            <main class="seitenrahmen">
+                <section class="kopfbereich">
+                    <p class="bereichstitel">Anmeldung ändern</p>
+                    <h1>Teilnehmer löschen</h1>
+                </section>
+                <form method="POST" class="aktionskarte">
+                    <p>Möchtest du <b>{{ name }}</b> wirklich löschen?</p>
+                    <div class="aktionsleiste">
+                        <button type="submit" class="schaltflaeche schaltflaeche-gefahr">Löschen</button>
+                        <a href="{{ url_for('index') }}" class="schaltflaeche schaltflaeche-sekundaer">Abbrechen</a>
+                    </div>
                 </form>
-            </div>
+            </main>
+            {{ footer_html }}
         </body>
         </html>
     """, name=name)
@@ -617,8 +1199,19 @@ def admin_add_participant():
         custom_item = request.form.get('custom_item', '').strip()
         for_coffee_only = 'for_coffee_only' in request.form
 
-        if for_coffee_only:
+        if not validate_email(email):
+            error_message = "Bitte eine gültige E-Mail-Adresse eingeben."
+        elif not validate_name_or_call(name):
+            error_message = "Bitte ein gültiges Rufzeichen oder einen vollständigen Namen eingeben."
+        elif custom_item and not validate_bringalong(custom_item):
+            error_message = "Das Mitbringsel darf aus maximal zwei Wörtern mit Buchstaben oder Bindestrichen bestehen."
+        elif not for_coffee_only and not (custom_item or selected_item):
+            error_message = "Bitte ein Mitbringsel auswählen, ein neues eintragen oder „Nur zum Kaffeetrinken“ wählen."
+        elif db_manager.participant_exists(name):
+            error_message = f"Teilnehmer '{name}' ist bereits eingetragen."
+        elif for_coffee_only:
             db_manager.add_brunch_entry(name, email, '', 1)
+            return redirect(url_for('admin_page'))
         else:
             item_lower = (custom_item if custom_item else selected_item).lower()
             if item_lower in [i.lower() for _, _, i, _ in taken_items_info]:
@@ -638,71 +1231,76 @@ def admin_add_participant():
         taken_items = [item for _, _, item, _ in taken_items_info if item]
         taken_items_str = ', '.join(taken_items)
 
-    return render_template_string(
+    return render_seite(
         """
         <!DOCTYPE html>
         <html lang="de">
         <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Teilnehmer hinzufügen - Admin</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-            <style>
-                body {
-                    background-color: #2aa6da;
-                    color: white;
-                }
-                input, select {
-                    color: black;
-                }
-            </style>
+            <style>{{ seiten_stil | safe }}</style>
         </head>
-        <body>
-            <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">Teilnehmer hinzufügen</h1>
-                <p class="text-red-500">{{ error_message }}</p>
-                <form method="post">
-                    <table>
-                        <tr>
-                            <td>Name:</td>
-                            <td><input type="text" name="name" required class="border p-2"></td>
-                        </tr>
-                        <tr>
-                            <td>E-Mail:</td>
-                            <td><input type="email" name="email" required class="border p-2"></td>
-                        </tr>
-                        <tr>
-                            <td>Mitbringsel:</td>
-                            <td>
+        <body class="app-shell">
+            <main class="seitenrahmen">
+                <section class="kopfbereich">
+                    <p class="bereichstitel">Admin</p>
+                    <h1>Teilnehmer hinzufügen</h1>
+                </section>
+
+                {% if error_message %}
+                <div class="meldung meldung-fehler" role="status">{{ error_message }}</div>
+                {% endif %}
+
+                <section class="formularbereich">
+                    <form method="post" class="aktionskarte">
+                        <div class="formularraster">
+                            <div class="formulargruppe">
+                                <label for="name">Name</label>
+                                <input type="text" id="name" name="name" required class="eingabe">
+                            </div>
+                            <div class="formulargruppe">
+                                <label for="email">E-Mail</label>
+                                <input type="email" id="email" name="email" required class="eingabe">
+                            </div>
+                            <div class="formulargruppe ganze-breite">
+                                <label for="selected_item">Mitbringsel</label>
                                 {% if no_items_available %}
-                                    <input type="text" name="selected_item" class="border p-2" value="Bitte selbst hinzufügen" disabled>
+                                    <input type="text" id="selected_item" name="selected_item" class="eingabe" value="Bitte selbst hinzufügen" disabled>
                                 {% else %}
-                                    <select name="selected_item" class="border p-2">
+                                    <select id="selected_item" name="selected_item" class="auswahl">
                                         {% for item in available_items %}
                                             <option value="{{ item }}">{{ item }}</option>
                                         {% endfor %}
                                     </select>
                                 {% endif %}
-                            </td>
-                            <td class="text-sm">
-                                <div><b>Von anderen bereits ausgewählte Mitbringsel:</b></div>
-                                <div>{{ taken_items_str }}</div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Oder neues Mitbringsel hinzufügen:</td>
-                            <td><input type="text" name="custom_item" class="border p-2"></td>
-                        </tr>
-                        <tr>
-                            <td>Nur zum Kaffeetrinken:</td>
-                            <td><input type="checkbox" name="for_coffee_only"></td>
-                        </tr>
-                        <tr>
-                            <td></td>
-                            <td><button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Teilnehmer hinzufügen</button></td>
-                        </tr>
-                    </table>
-                </form>
-            </div>
+                            </div>
+                            <div class="formulargruppe ganze-breite">
+                                <label for="custom_item">Oder neues Mitbringsel hinzufügen</label>
+                                <input type="text" id="custom_item" name="custom_item" class="eingabe">
+                            </div>
+                            <label class="checkbox-zeile ganze-breite" for="for_coffee_only">
+                                <input type="checkbox" id="for_coffee_only" name="for_coffee_only">
+                                <span>Nur zum Kaffeetrinken</span>
+                            </label>
+                            <div class="aktionsleiste ganze-breite">
+                                <button type="submit" class="schaltflaeche schaltflaeche-primaer">Teilnehmer hinzufügen</button>
+                                <a href="{{ url_for('admin_page') }}" class="schaltflaeche schaltflaeche-sekundaer">Zurück</a>
+                            </div>
+                        </div>
+                    </form>
+
+                    <aside class="aktionskarte">
+                        <h2>Bereits vergeben</h2>
+                        {% if taken_items_str %}
+                        <p class="mitbringsel-liste">{{ taken_items_str }}</p>
+                        {% else %}
+                        <p class="mitbringsel-liste">Noch keine Mitbringsel vergeben.</p>
+                        {% endif %}
+                    </aside>
+                </section>
+            </main>
+            {{ footer_html }}
         </body>
         </html>
         """,
@@ -735,90 +1333,108 @@ def admin_page():
     event_cancelled = is_event_cancelled()
     exception_notice = should_show_exception_notice()
     next_date = next_brunch_date()
+    statistik_verfuegbar = os.path.exists(os.path.join('statistik', 'teilnahmen_statistik.png'))
 
-    return render_template_string("""
+    return render_seite("""
         <!DOCTYPE html>
         <html lang="de">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Admin - Frühstücks-Brunch</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-            <style>
-                body {
-                    background-color: #2aa6da;
-                    color: white;
-                }
-                thead th {
-                    color: black;
-                }
-            </style>
+            <style>{{ seiten_stil | safe }}</style>
         </head>
-        <body>
-            <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">Admin-Seite: Frühstücks-Brunch</h1>
-                <table class="table-auto w-full mb-6">
-                    <thead>
-                        <tr class="bg-gray-200">
-                            <th class="px-4 py-2">Name</th>
-                            <th class="px-4 py-2">E-Mail</th>
-                            <th class="px-4 py-2">Mitbringsel</th>
-                            <th class="px-4 py-2">Nur zum Kaffee</th>
-                            <th class="px-4 py-2">Aktionen</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for name, email, item, for_coffee_only in brunch_info %}
-                        <tr>
-                            <td class="border px-4 py-2">{{ name }}</td>
-                            <td class="border px-4 py-2">{{ email }}</td>
-                            <td class="border px-4 py-2">{{ item }}</td>
-                            <td class="border px-4 py-2">{{ 'Ja' if for_coffee_only else 'Nein' }}</td>
-                            <td class="border px-4 py-2">
-                                <a href="{{ url_for('edit_entry', name=name) }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Bearbeiten</a>
-                                <form action="{{ url_for('delete_entry', name=name) }}" method="post" style="display: inline;">
-                                    <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Löschen</button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <a href="{{ mailto_link }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">E-Mail an alle Teilnehmer senden</a>
-                &nbsp;&nbsp;
-                <a href="{{ url_for('download_pdf') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Tabelle als PDF herunterladen</a>
-                &nbsp;&nbsp;
-                <a href="{{ url_for('admin_mitbringsel') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Mitbringsel editieren</a>
-                &nbsp;&nbsp;
-                <a href="{{ url_for('admin_add_participant') }}" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Teilnehmer hinzufügen</a>
-                <br><br>
-                <h2 class="text-xl font-bold text-center my-4">Nächster Termin: {{ next_date }}</h2>
+        <body class="app-shell">
+            <main class="seitenrahmen">
+                <section class="kopfbereich">
+                    <p class="bereichstitel">Admin</p>
+                    <h1>Frühstücks-Brunch verwalten</h1>
+                    <p class="terminzeile">Nächster Termin: {{ next_date }}</p>
+                </section>
+
                 {% if event_cancelled %}
-                <p class="text-red-500 text-center">Der nächste Termin fällt aus.</p>
+                <div class="hinweisband warnung">Der nächste Termin fällt aus.</div>
                 {% endif %}
                 {% if exception_notice %}
-                <p class="text-red-500 text-center">Aus organisatorischen Gründen weichen wir einmalig vom normalen Rhythmus ab.</p>
+                <div class="hinweisband">Aus organisatorischen Gründen weichen wir einmalig vom normalen Rhythmus ab.</div>
                 {% endif %}
-                <form method="post" action="{{ url_for('update_settings') }}" class="my-4">
-                    <label for="override_date">Abweichendes Datum:</label>
-                    <input type="date" id="override_date" name="override_date" value="{{ override_date_iso }}" class="text-black" min="2025-07-06" step="7"><br>
-                    <input type="checkbox" id="cancel_next" name="cancel_next" {% if event_cancelled %}checked{% endif %}>
-                    <label for="cancel_next">Nächsten Termin ausfallen lassen</label><br>
-                    <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Speichern</button>
-                </form>
-                <form method="post" action="{{ url_for('reset_special_dates') }}" class="my-4">
-                    <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Ausfall/Abweichung zurücksetzen</button>
-                </form>
-                <br>
-                <img src="/statistik/teilnahmen_statistik.png" alt="Statistik">
-                <br><br>
-            </div>
+
+                <section class="tabellenkarte">
+                    <table class="daten-tabelle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>E-Mail</th>
+                                <th>Mitbringsel</th>
+                                <th>Nur zum Kaffee</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for name, email, item, for_coffee_only in brunch_info %}
+                            <tr>
+                                <td>{{ name }}</td>
+                                <td>{{ email }}</td>
+                                <td>{{ item }}</td>
+                                <td>{{ 'Ja' if for_coffee_only else 'Nein' }}</td>
+                                <td>
+                                    <div class="zeilenaktionen">
+                                        <a href="{{ url_for('edit_entry', name=name) }}" class="schaltflaeche schaltflaeche-erfolg">Bearbeiten</a>
+                                        <form action="{{ url_for('delete_entry', name=name) }}" method="post">
+                                            <button type="submit" class="schaltflaeche schaltflaeche-gefahr">Löschen</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="admin-raster">
+                    <div class="aktionskarte">
+                        <h2>Aktionen</h2>
+                        <div class="aktionsleiste">
+                            <a href="{{ mailto_link }}" class="schaltflaeche schaltflaeche-erfolg">E-Mail an alle Teilnehmer senden</a>
+                            <a href="{{ url_for('download_pdf') }}" class="schaltflaeche schaltflaeche-sekundaer">Tabelle als PDF herunterladen</a>
+                            <a href="{{ url_for('admin_mitbringsel') }}" class="schaltflaeche schaltflaeche-sekundaer">Mitbringsel editieren</a>
+                            <a href="{{ url_for('admin_add_participant') }}" class="schaltflaeche schaltflaeche-primaer">Teilnehmer hinzufügen</a>
+                        </div>
+                    </div>
+
+                    <div class="aktionskarte">
+                        <h2>Termin</h2>
+                        <form method="post" action="{{ url_for('update_settings') }}" class="formulargruppe">
+                            <label for="override_date">Abweichendes Datum</label>
+                            <input type="date" id="override_date" name="override_date" value="{{ override_date_iso }}" class="eingabe" min="2025-07-06" step="7">
+                            <label class="checkbox-zeile" for="cancel_next">
+                                <input type="checkbox" id="cancel_next" name="cancel_next" {% if event_cancelled %}checked{% endif %}>
+                                <span>Nächsten Termin ausfallen lassen</span>
+                            </label>
+                            <button type="submit" class="schaltflaeche schaltflaeche-primaer">Speichern</button>
+                        </form>
+                        <form method="post" action="{{ url_for('reset_special_dates') }}" class="aktionsleiste">
+                            <button type="submit" class="schaltflaeche schaltflaeche-gefahr">Ausfall/Abweichung zurücksetzen</button>
+                        </form>
+                    </div>
+                </section>
+
+                <section class="aktionskarte">
+                    <h2>Statistik</h2>
+                    {% if statistik_verfuegbar %}
+                    <img src="/statistik/teilnahmen_statistik.png" alt="Statistik">
+                    {% else %}
+                    <p class="hilfetext">Es ist noch keine Statistikdatei vorhanden.</p>
+                    {% endif %}
+                </section>
+            </main>
+            {{ footer_html }}
         </body>
         </html>
     """, brunch_info=brunch_info, current_year=datetime.now().year, mailto_link=mailto_link,
            override_date=override_date, override_date_iso=override_date_iso,
            event_cancelled=event_cancelled, exception_notice=exception_notice,
-           next_date=next_date)
+           next_date=next_date, statistik_verfuegbar=statistik_verfuegbar)
 
 # Route zum Anzeigen und Bearbeiten der Mitbringsel-Liste
 @brunch.route('/admin/mitbringsel', methods=['GET', 'POST'])
@@ -830,7 +1446,7 @@ def admin_mitbringsel():
         updated_items = [item.strip() for item in updated_items if item.strip()]
         
         # Aktualisierte Liste in die Datei schreiben
-        with open('mitbringsel.txt', 'w') as file:
+        with open('mitbringsel.txt', 'w', encoding='utf-8') as file:
             for item in updated_items:
                 file.write(f"{item}\n")
 
@@ -840,35 +1456,33 @@ def admin_mitbringsel():
     items = read_items_from_file()
     items_str = '\n'.join(items)
 
-    return render_template_string("""
+    return render_seite("""
         <!DOCTYPE html>
         <html lang="de">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Admin - Mitbringsel bearbeiten</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-            <style>
-                body {
-                    background-color: #2aa6da;
-                    color: white;
-                }
-                textarea {
-                    width: 100%;
-                    height: 200px;
-                    color: black;
-                }
-            </style>
+            <style>{{ seiten_stil | safe }}</style>
         </head>
-        <body>
-            <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">Mitbringsel bearbeiten</h1>
-                <form method="post">
-                    <textarea name="mitbringsel_list">{{ items_str }}</textarea><br>
-                    <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Speichern</button>
-                    <a href="{{ url_for('admin_page') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Zurück zum Admin-Bereich</a>
+        <body class="app-shell">
+            <main class="seitenrahmen">
+                <section class="kopfbereich">
+                    <p class="bereichstitel">Admin</p>
+                    <h1>Mitbringsel bearbeiten</h1>
+                </section>
+                <form method="post" class="aktionskarte">
+                    <div class="formulargruppe">
+                        <label for="mitbringsel_list">Mitbringsel-Liste</label>
+                        <textarea id="mitbringsel_list" name="mitbringsel_list">{{ items_str }}</textarea>
+                    </div>
+                    <div class="aktionsleiste">
+                        <button type="submit" class="schaltflaeche schaltflaeche-primaer">Speichern</button>
+                        <a href="{{ url_for('admin_page') }}" class="schaltflaeche schaltflaeche-sekundaer">Zurück zum Admin-Bereich</a>
+                    </div>
                 </form>
-            </div>
+            </main>
+            {{ footer_html }}
         </body>
         </html>
     """, items_str=items_str)
@@ -877,55 +1491,49 @@ def admin_mitbringsel():
 @requires_auth
 def edit_entry(name):
     entry = db_manager.get_entry(name)
+    if not entry:
+        return redirect(url_for('admin_page'))
+    error_message = ""
 
     if request.method == 'POST':
         # Daten aus dem Formular auslesen
-        updated_name = request.form['name']
-        updated_email = request.form['email']
-        updated_item = request.form['item']
+        updated_name = request.form['name'].strip()
+        updated_email = request.form['email'].strip()
+        updated_item = request.form['item'].strip()
         updated_for_coffee_only = 'for_coffee_only' in request.form
+        if updated_for_coffee_only:
+            updated_item = ''
 
-        # Update in der Datenbank durchführen
-        db_manager.update_entry(name, updated_name, updated_email, updated_item, updated_for_coffee_only)
-        
-        return redirect(url_for('admin_page'))
+        if not validate_email(updated_email):
+            error_message = "Bitte eine gültige E-Mail-Adresse eingeben."
+        elif not validate_name_or_call(updated_name):
+            error_message = "Bitte ein gültiges Rufzeichen oder einen vollständigen Namen eingeben."
+        elif not updated_for_coffee_only and not updated_item:
+            error_message = "Bitte ein Mitbringsel eintragen oder „Nur zum Kaffeetrinken“ wählen."
+        elif updated_item and not validate_bringalong(updated_item):
+            error_message = "Das Mitbringsel darf aus maximal zwei Wörtern mit Buchstaben oder Bindestrichen bestehen."
+        else:
+            # Update in der Datenbank durchführen
+            db_manager.update_entry(name, updated_name, updated_email, updated_item, updated_for_coffee_only)
+            return redirect(url_for('admin_page'))
 
-    return render_template_string("""
+        entry = (updated_name, updated_email, updated_item, int(updated_for_coffee_only))
+
+    return render_seite("""
         <!DOCTYPE html>
         <html lang="de">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Eintrag Bearbeiten</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            <style>{{ seiten_stil | safe }}</style>
         </head>
-        <body>
-            <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold text-center my-6">Eintrag Bearbeiten</h1>
-                <style>
-                    .form-input {
-                        border: 1px solid #ccc;
-                        border-radius: 4px;
-                        padding: 8px 12px;
-                        margin: 8px 0;
-                    }
-                    .form-label {
-                        font-weight: bold;
-                        margin-top: 12px;
-                    }
-                    .form-submit {
-                        background-color: #4CAF50;
-                        color: white;
-                        padding: 12px 20px;
-                        border: none;
-                        border-radius: 4px;
-                        cursor: pointer;
-                    }
-                    .form-submit:hover {
-                        background-color: #45a049;
-                    }
-                </style>
-
+        <body class="app-shell">
+            <main class="seitenrahmen">
+                <section class="kopfbereich">
+                    <p class="bereichstitel">Admin</p>
+                    <h1>Eintrag bearbeiten</h1>
+                </section>
                 <script>
                     function handleCoffeeOnlyChange() {
                         var checkBox = document.getElementById('for_coffee_only');
@@ -935,27 +1543,40 @@ def edit_entry(name):
                         }
                     }
                 </script>
-                
-                <form method="post">
-                    <label for="name" class="form-label">Name:</label><br>
-                    <input type="text" id="name" name="name" value="{{ entry[0] }}" class="form-input"><br>
-                
-                    <label for="email" class="form-label">E-Mail:</label><br>
-                    <input type="email" id="email" name="email" value="{{ entry[1] }}" class="form-input"><br>
-                
-                    <label for="item" class="form-label">Mitbringsel:</label><br>
-                    <input type="text" id="item" name="item" value="{{ entry[2] }}" class="form-input"><br>
-                
-                    <input type="checkbox" id="for_coffee_only" name="for_coffee_only" {{ 'checked' if entry[3] else '' }} onchange="handleCoffeeOnlyChange()">
-                    <label for="for_coffee_only" class="form-label">Nur zum Kaffeetrinken</label><br><br>
 
-                    <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Änderungen Speichern</button>
-                    <a href="{{ url_for('admin_page') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Abbruch und zurück zum Admin-Bereich</a>
-                    </form>
-            </div>
+                {% if error_message %}
+                <div class="meldung meldung-fehler" role="status">{{ error_message }}</div>
+                {% endif %}
+
+                <form method="post" class="aktionskarte">
+                    <div class="formularraster">
+                        <div class="formulargruppe">
+                            <label for="name">Name</label>
+                            <input type="text" id="name" name="name" value="{{ entry[0] }}" class="eingabe" required>
+                        </div>
+                        <div class="formulargruppe">
+                            <label for="email">E-Mail</label>
+                            <input type="email" id="email" name="email" value="{{ entry[1] }}" class="eingabe" required>
+                        </div>
+                        <div class="formulargruppe ganze-breite">
+                            <label for="item">Mitbringsel</label>
+                            <input type="text" id="item" name="item" value="{{ entry[2] }}" class="eingabe">
+                        </div>
+                        <label class="checkbox-zeile ganze-breite" for="for_coffee_only">
+                            <input type="checkbox" id="for_coffee_only" name="for_coffee_only" {{ 'checked' if entry[3] else '' }} onchange="handleCoffeeOnlyChange()">
+                            <span>Nur zum Kaffeetrinken</span>
+                        </label>
+                        <div class="aktionsleiste ganze-breite">
+                            <button type="submit" class="schaltflaeche schaltflaeche-primaer">Änderungen speichern</button>
+                            <a href="{{ url_for('admin_page') }}" class="schaltflaeche schaltflaeche-sekundaer">Abbruch und zurück zum Admin-Bereich</a>
+                        </div>
+                    </div>
+                </form>
+            </main>
+            {{ footer_html }}
         </body>
         </html>
-    """, entry=entry)
+    """, entry=entry, error_message=error_message)
 
 # Route für das Ausliefern von Statistiken hinzufügen
 @brunch.route('/statistik/<filename>')
@@ -1014,7 +1635,7 @@ def save_participant_log():
     # Aktuelle Zeit in Berliner Zeitzone
     current_date = datetime.now(berlin_tz).strftime('%d.%m.%Y')
 
-    with open('teilnahmen.log', 'a') as log_file:
+    with open('teilnahmen.log', 'a', encoding='utf-8') as log_file:
         for name, _, item, _ in brunch_info:
             log_file.write(f"{current_date}, {name}, {item}\n")
     logger.debug("Teilnehmerlog wurde gespeichert.")
